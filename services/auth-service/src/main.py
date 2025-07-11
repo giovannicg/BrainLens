@@ -1,10 +1,19 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from infrastructure.database import connect_to_mongo, close_mongo_connection, health_check as db_health_check
+from adapters.controllers.auth_controller import router as auth_router
+import logging
+import os
+
+# Configurar logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 
 app = FastAPI(
-    title="BrainLens API",
-    description="API para el proyecto BrainLens",
+    title="BrainLens Auth Service",
+    description="Servicio de autenticación para BrainLens",
     version="1.0.0"
 )
 
@@ -27,13 +36,16 @@ async def shutdown_event():
     """Evento de cierre de la aplicación"""
     await close_mongo_connection()
 
-# Aquí se montarán los routers de los controladores
-# from adapters.controllers import router as main_router
-# app.include_router(main_router)
+# Incluir routers
+app.include_router(auth_router)
 
 @app.get("/")
 async def root():
-    return {"message": "BrainLens API está funcionando"}
+    return {
+        "message": "BrainLens Auth Service está funcionando",
+        "version": "1.0.0",
+        "service": "auth"
+    }
 
 @app.get("/health")
 async def health_check():
@@ -41,9 +53,11 @@ async def health_check():
     db_status = await db_health_check()
     return {
         "api": "healthy",
-        "database": db_status
+        "database": db_status,
+        "service": "auth"
     }
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000) 
+    port = int(os.getenv("AUTH_SERVICE_PORT", "8001"))
+    uvicorn.run(app, host="0.0.0.0", port=port)
