@@ -1,0 +1,23 @@
+# FastAPI y servidor
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+
+# MongoDB
+motor==3.3.2
+pymongo==4.6.0
+
+# Validación de datos
+pydantic==2.5.0
+pydantic-settings==2.1.0
+
+# Almacenamiento (Azure)
+azure-storage-file==12.9.0
+
+# Utilidades
+python-multipart==0.0.6
+python-dotenv==1.0.0
+
+# Desarrollo
+pytest==7.4.3
+pytest-asyncio==0.21.1
+httpx==0.25.2 
