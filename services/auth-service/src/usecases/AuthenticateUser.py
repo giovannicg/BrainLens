@@ -2,9 +2,9 @@ from typing import Optional, Tuple
 from datetime import datetime, timedelta
 import jwt
 import os
-from domain.entities.User import User
-from domain.repositories.UserRepository import UserRepository
-from adapters.dtos.auth_dto import UserLoginRequest, TokenResponse, UserResponse
+from ..domain.entities.User import User
+from ..domain.repositories.UserRepository import UserRepository
+from ..adapters.dtos.auth_dto import UserLoginRequest, TokenResponse, UserResponse
 import logging
 
 logger = logging.getLogger(__name__)

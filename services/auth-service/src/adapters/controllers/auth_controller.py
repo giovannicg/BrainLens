@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional
-from domain.repositories.UserRepository import UserRepository
-from adapters.gateways.user_gateway import UserGateway
-from usecases.RegisterUser import RegisterUser
-from usecases.AuthenticateUser import AuthenticateUser
-from adapters.dtos.auth_dto import (
+from ...domain.repositories.UserRepository import UserRepository
+from ..gateways.user_gateway import UserGateway
+from ...usecases.RegisterUser import RegisterUser
+from ...usecases.AuthenticateUser import AuthenticateUser
+from ..dtos.auth_dto import (
     UserRegisterRequest, UserLoginRequest, UserResponse, 
     TokenResponse, RefreshTokenRequest, ChangePasswordRequest,
     ForgotPasswordRequest, ResetPasswordRequest, VerifyEmailRequest

@@ -1,0 +1,1 @@
+# Use cases package for BrainLens Auth Service 

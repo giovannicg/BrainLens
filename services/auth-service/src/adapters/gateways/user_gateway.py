@@ -1,9 +1,9 @@
 from typing import Optional, List
 from datetime import datetime
 from bson import ObjectId
-from domain.entities.User import User
-from domain.repositories.UserRepository import UserRepository
-from infrastructure.database import get_database
+from ...domain.entities.User import User
+from ...domain.repositories.UserRepository import UserRepository
+from ...infrastructure.database import get_database
 import logging
 
 logger = logging.getLogger(__name__)
