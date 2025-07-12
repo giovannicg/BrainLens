@@ -1,0 +1,99 @@
+version: '3.8'
+
+services:
+  # MongoDB
+  mongodb:
+    image: mongo:7.0
+    container_name: brainlens-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+      MONGO_INITDB_DATABASE: brainlens
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - brainlens-network
+
+  # Auth Service
+  auth-service:
+    build: ./services/auth-service
+    container_name: brainlens-auth-service
+    restart: unless-stopped
+    environment:
+      - MONGODB_URL=mongodb://admin:password@mongodb:27017
+      - DATABASE_NAME=brainlens
+      - HOST=0.0.0.0
+      - PORT=8001
+      - DEBUG=true
+    ports:
+      - "8001:8001"
+    depends_on:
+      - mongodb
+    networks:
+      - brainlens-network
+
+  # Image Service
+  image-service:
+    build: ./services/image-service
+    container_name: brainlens-image-service
+    restart: unless-stopped
+    environment:
+      - MONGODB_URL=mongodb://admin:password@mongodb:27017
+      - DATABASE_NAME=brainlens
+      - STORAGE_TYPE=local
+      - LOCAL_STORAGE_PATH=/app/storage
+      - HOST=0.0.0.0
+      - PORT=8002
+      - DEBUG=true
+    ports:
+      - "8002:8002"
+    volumes:
+      - image_storage:/app/storage
+    depends_on:
+      - mongodb
+    networks:
+      - brainlens-network
+
+  # Annotation Service
+  # Annotation Service
+  annotation-service:
+    build: ./services/annotation-service
+    container_name: brainlens-annotation-service
+    restart: unless-stopped
+    environment:
+      - MONGODB_URL=mongodb://admin:password@mongodb:27017
+      - DATABASE_NAME=brainlens
+      - HOST=0.0.0.0
+      - PORT=8003
+      - DEBUG=true
+    ports:
+      - "8003:8003"
+    depends_on:
+      - mongodb
+    networks:
+      - brainlens-network
+
+  # Frontend Service
+  frontend-service:
+    build: ./services/frontend-service
+    container_name: brainlens-frontend-service
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      - auth-service
+    networks:
+      - brainlens-network
+
+volumes:
+  mongodb_data:
+    driver: local
+  image_storage:
+    driver: local
+
+networks:
+  brainlens-network:
+    driver: bridge

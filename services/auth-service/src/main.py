@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from infrastructure.database import connect_to_mongo, close_mongo_connection, health_check as db_health_check
-from adapters.controllers.auth_controller import router as auth_router
+from .infrastructure.database import connect_to_mongo, close_mongo_connection, health_check as db_health_check
+from .adapters.controllers.auth_controller import router as auth_router
 import logging
 import os
 
