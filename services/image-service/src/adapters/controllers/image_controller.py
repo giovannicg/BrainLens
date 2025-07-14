@@ -3,11 +3,11 @@ from fastapi.responses import FileResponse
 from typing import List, Optional
 import os
 
-from ...usecases.upload_image import UploadImageUseCase
-from ...usecases.get_images import GetImagesUseCase, GetImageByIdUseCase, GetImagesByStatusUseCase
-from ...usecases.delete_image import DeleteImageUseCase
-from ...infrastructure.repositories.MongoImageRepository import MongoImageRepository
-from ..dtos.image_dto import ImageResponse, ImageUploadResponse, ImageListResponse, ImageDeleteResponse, ErrorResponse
+from usecases.upload_image import UploadImageUseCase
+from usecases.get_images import GetImagesUseCase, GetImageByIdUseCase, GetImagesByStatusUseCase
+from usecases.delete_image import DeleteImageUseCase
+from infrastructure.repositories.MongoImageRepository import MongoImageRepository
+from adapters.dtos.image_dto import ImageResponse, ImageUploadResponse, ImageListResponse, ImageDeleteResponse, ErrorResponse
 
 router = APIRouter(prefix="/images", tags=["images"])
 

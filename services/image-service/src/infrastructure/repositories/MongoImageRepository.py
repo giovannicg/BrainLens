@@ -1,8 +1,8 @@
 from typing import List, Optional
 from bson import ObjectId
-from ...domain.entities.Image import Image
-from ...domain.repositories.ImageRepository import ImageRepository
-from ..database import database
+from domain.entities.Image import Image
+from domain.repositories.ImageRepository import ImageRepository
+from infrastructure.database import database
 
 class MongoImageRepository(ImageRepository):
     def __init__(self):

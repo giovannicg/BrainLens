@@ -1,21 +1,18 @@
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from bson import ObjectId
 
 class PyObjectId(ObjectId):
     @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
-
-    @classmethod
+    @field_validator('value')
     def validate(cls, v):
         if not ObjectId.is_valid(v):
             raise ValueError("Invalid objectid")
         return ObjectId(v)
 
     @classmethod
-    def __modify_schema__(cls, field_schema):
+    def __get_pydantic_json_schema__(cls, field_schema):
         field_schema.update(type="string")
 
 class Image(BaseModel):
@@ -31,12 +28,12 @@ class Image(BaseModel):
     upload_date: datetime = Field(default_factory=datetime.utcnow)
     processing_status: str = "pending"  # pending, processing, completed, failed
     metadata: dict = Field(default_factory=dict)
-    
-    class Config:
-        allow_population_by_field_name = True
-        arbitrary_types_allowed = True
-        json_encoders = {ObjectId: str}
-        schema_extra = {
+
+    model_config = {
+        "populate_by_name": True,
+        "arbitrary_types_allowed": True,
+        "json_encoders": {ObjectId: str},
+        "json_schema_extra": {
             "example": {
                 "filename": "brain_scan_001.jpg",
                 "original_filename": "patient_scan.jpg",
@@ -54,3 +51,4 @@ class Image(BaseModel):
                 }
             }
         }
+    }

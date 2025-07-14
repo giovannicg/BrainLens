@@ -1,6 +1,6 @@
 from typing import List, Optional
-from ...domain.entities.Annotation import Annotation
-from ...domain.repositories.AnnotationRepository import AnnotationRepository
+from domain.entities.Annotation import Annotation
+from domain.repositories.AnnotationRepository import AnnotationRepository
 
 class GetAnnotationsUseCase:
     def __init__(self, annotation_repository: AnnotationRepository):

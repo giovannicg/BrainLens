@@ -19,6 +19,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copiar código de la aplicación
 COPY src/ ./src/
 
+# Cambiar al directorio src
+WORKDIR /app/src
+
 # Crear usuario no root
 RUN useradd --create-home --shell /bin/bash app \
     && chown -R app:app /app
@@ -28,4 +31,4 @@ USER app
 EXPOSE 8003
 
 # Comando para ejecutar la aplicación
-CMD ["python", "-m", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8003"]
+CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8003"]

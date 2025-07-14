@@ -19,6 +19,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copiar código de la aplicación
 COPY src/ ./src/
 
+# Cambiar al directorio src
+WORKDIR /app/src
+
 # Crear directorio de almacenamiento
 RUN mkdir -p /app/storage
 
@@ -31,4 +34,4 @@ USER app
 EXPOSE 8002
 
 # Comando para ejecutar la aplicación
-CMD ["python", "-m", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8002"]
+CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8002"]

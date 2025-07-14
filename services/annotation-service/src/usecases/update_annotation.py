@@ -1,7 +1,7 @@
 from typing import Optional
 from datetime import datetime
-from ...domain.entities.Annotation import Annotation, AnnotationShape, AnnotationPoint
-from ...domain.repositories.AnnotationRepository import AnnotationRepository
+from domain.entities.Annotation import Annotation, AnnotationShape, AnnotationPoint
+from domain.repositories.AnnotationRepository import AnnotationRepository
 
 class UpdateAnnotationUseCase:
     def __init__(self, annotation_repository: AnnotationRepository):

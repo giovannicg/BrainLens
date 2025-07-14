@@ -2,52 +2,54 @@ from fastapi import APIRouter, HTTPException, Depends, Query
 from typing import List, Optional
 from datetime import datetime
 
-from ...usecases.create_annotation import CreateAnnotationUseCase
-from ...usecases.get_annotations import (
+from usecases.create_annotation import CreateAnnotationUseCase
+from usecases.get_annotations import (
     GetAnnotationsUseCase, GetAnnotationByIdUseCase, 
     GetAnnotationsByStatusUseCase, GetAnnotationsByCategoryUseCase,
     GetPendingReviewsUseCase
 )
-from ...usecases.update_annotation import UpdateAnnotationUseCase, ReviewAnnotationUseCase
-from ...usecases.delete_annotation import DeleteAnnotationUseCase
-from ...infrastructure.repositories.MongoAnnotationRepository import MongoAnnotationRepository
-from ..dtos.annotation_dto import (
+from usecases.update_annotation import UpdateAnnotationUseCase, ReviewAnnotationUseCase
+from usecases.delete_annotation import DeleteAnnotationUseCase
+from infrastructure.repositories.MongoAnnotationRepository import MongoAnnotationRepository
+from adapters.gateways.annotation_gateway import AnnotationGateway
+from adapters.dtos.annotation_dto import (
     AnnotationResponse, CreateAnnotationRequest, UpdateAnnotationRequest,
     ReviewAnnotationRequest, AnnotationListResponse, AnnotationCreateResponse,
     AnnotationUpdateResponse, AnnotationDeleteResponse, ErrorResponse
 )
+from infrastructure.database import database
 
 router = APIRouter(prefix="/annotations", tags=["annotations"])
 
 # Inyección de dependencias
 def get_annotation_repository():
-    return MongoAnnotationRepository()
+    return AnnotationGateway()
 
-def get_create_use_case(repo: MongoAnnotationRepository = Depends(get_annotation_repository)):
+def get_create_use_case(repo: AnnotationGateway = Depends(get_annotation_repository)):
     return CreateAnnotationUseCase(repo)
 
-def get_get_annotations_use_case(repo: MongoAnnotationRepository = Depends(get_annotation_repository)):
+def get_get_annotations_use_case(repo: AnnotationGateway = Depends(get_annotation_repository)):
     return GetAnnotationsUseCase(repo)
 
-def get_get_annotation_by_id_use_case(repo: MongoAnnotationRepository = Depends(get_annotation_repository)):
+def get_get_annotation_by_id_use_case(repo: AnnotationGateway = Depends(get_annotation_repository)):
     return GetAnnotationByIdUseCase(repo)
 
-def get_get_annotations_by_status_use_case(repo: MongoAnnotationRepository = Depends(get_annotation_repository)):
+def get_get_annotations_by_status_use_case(repo: AnnotationGateway = Depends(get_annotation_repository)):
     return GetAnnotationsByStatusUseCase(repo)
 
-def get_get_annotations_by_category_use_case(repo: MongoAnnotationRepository = Depends(get_annotation_repository)):
+def get_get_annotations_by_category_use_case(repo: AnnotationGateway = Depends(get_annotation_repository)):
     return GetAnnotationsByCategoryUseCase(repo)
 
-def get_get_pending_reviews_use_case(repo: MongoAnnotationRepository = Depends(get_annotation_repository)):
+def get_get_pending_reviews_use_case(repo: AnnotationGateway = Depends(get_annotation_repository)):
     return GetPendingReviewsUseCase(repo)
 
-def get_update_annotation_use_case(repo: MongoAnnotationRepository = Depends(get_annotation_repository)):
+def get_update_annotation_use_case(repo: AnnotationGateway = Depends(get_annotation_repository)):
     return UpdateAnnotationUseCase(repo)
 
-def get_review_annotation_use_case(repo: MongoAnnotationRepository = Depends(get_annotation_repository)):
+def get_review_annotation_use_case(repo: AnnotationGateway = Depends(get_annotation_repository)):
     return ReviewAnnotationUseCase(repo)
 
-def get_delete_annotation_use_case(repo: MongoAnnotationRepository = Depends(get_annotation_repository)):
+def get_delete_annotation_use_case(repo: AnnotationGateway = Depends(get_annotation_repository)):
     return DeleteAnnotationUseCase(repo)
 
 def _annotation_to_response(annotation) -> AnnotationResponse:
