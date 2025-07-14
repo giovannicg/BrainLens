@@ -1,5 +1,5 @@
-from ...domain.repositories.ImageRepository import ImageRepository
-from ...infrastructure.storage import storage_service
+from domain.repositories.ImageRepository import ImageRepository
+from infrastructure.storage import storage_service
 
 class DeleteImageUseCase:
     def __init__(self, image_repository: ImageRepository):

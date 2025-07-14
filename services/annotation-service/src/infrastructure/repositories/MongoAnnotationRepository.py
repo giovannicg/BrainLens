@@ -1,7 +1,7 @@
 from typing import List, Optional
 from bson import ObjectId
-from ...domain.entities.Annotation import Annotation
-from ...domain.repositories.AnnotationRepository import AnnotationRepository
+from domain.entities.Annotation import Annotation
+from domain.repositories.AnnotationRepository import AnnotationRepository
 from ..database import database
 from datetime import datetime
 

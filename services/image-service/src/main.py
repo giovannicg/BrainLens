@@ -4,8 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 
-from .infrastructure.database import database
-from .adapters.controllers.image_controller import router as image_router
+from infrastructure.database import database
+from adapters.controllers.image_controller import router as image_router
 
 load_dotenv()
 

@@ -1,6 +1,6 @@
 from typing import List
-from ...domain.entities.Image import Image
-from ...domain.repositories.ImageRepository import ImageRepository
+from domain.entities.Image import Image
+from domain.repositories.ImageRepository import ImageRepository
 
 class GetImagesUseCase:
     def __init__(self, image_repository: ImageRepository):

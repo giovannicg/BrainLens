@@ -1,6 +1,6 @@
 from typing import Optional
-from ...domain.entities.Annotation import Annotation, AnnotationShape, AnnotationPoint
-from ...domain.repositories.AnnotationRepository import AnnotationRepository
+from domain.entities.Annotation import Annotation, AnnotationShape, AnnotationPoint
+from domain.repositories.AnnotationRepository import AnnotationRepository
 
 class CreateAnnotationUseCase:
     def __init__(self, annotation_repository: AnnotationRepository):

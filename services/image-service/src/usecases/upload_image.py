@@ -1,7 +1,7 @@
 from typing import Optional
-from ...domain.entities.Image import Image
-from ...domain.repositories.ImageRepository import ImageRepository
-from ...infrastructure.storage import storage_service
+from domain.entities.Image import Image
+from domain.repositories.ImageRepository import ImageRepository
+from infrastructure.storage import storage_service
 
 class UploadImageUseCase:
     def __init__(self, image_repository: ImageRepository):

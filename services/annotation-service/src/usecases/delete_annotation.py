@@ -1,4 +1,4 @@
-from ...domain.repositories.AnnotationRepository import AnnotationRepository
+from domain.repositories.AnnotationRepository import AnnotationRepository
 
 class DeleteAnnotationUseCase:
     def __init__(self, annotation_repository: AnnotationRepository):
