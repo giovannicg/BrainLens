@@ -34,6 +34,12 @@ const Navbar: React.FC = () => {
                 Subir Imagen
               </Link>
               <Link 
+                to="/images" 
+                className={`navbar-link ${location.pathname === '/images' ? 'active' : ''}`}
+              >
+                Mis Imágenes
+              </Link>
+              <Link 
                 to="/annotations" 
                 className={`navbar-link ${location.pathname === '/annotations' ? 'active' : ''}`}
               >

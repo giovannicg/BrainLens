@@ -1,6 +1,11 @@
 from fastapi import APIRouter, HTTPException, Depends, Query
 from typing import List, Optional
 from datetime import datetime
+import logging
+
+# Configurar logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 from usecases.create_annotation import CreateAnnotationUseCase
 from usecases.get_annotations import (
@@ -82,13 +87,16 @@ def _annotation_to_response(annotation) -> AnnotationResponse:
 @router.post("/", response_model=AnnotationCreateResponse)
 async def create_annotation(
     annotation_data: CreateAnnotationRequest,
-    user_id: str = Query(..., description="ID del usuario que crea la anotación"),
     create_use_case: CreateAnnotationUseCase = Depends(get_create_use_case)
 ):
     """Crear una nueva anotación"""
     try:
+        logger.info(f"Creando anotación: {annotation_data.dict()}")
+        
         # Ejecutar caso de uso
-        annotation = await create_use_case.execute(annotation_data.dict(), user_id)
+        annotation = await create_use_case.execute(annotation_data.dict(), annotation_data.user_id)
+        
+        logger.info(f"Anotación creada exitosamente: {annotation.id}")
         
         # Convertir a DTO de respuesta
         annotation_response = _annotation_to_response(annotation)
@@ -99,8 +107,12 @@ async def create_annotation(
         )
         
     except ValueError as e:
+        logger.error(f"Error de validación: {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error(f"Error interno: {str(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Error interno del servidor: {str(e)}")
 
 @router.get("/", response_model=AnnotationListResponse)
@@ -113,9 +125,13 @@ async def get_annotations(
 ):
     """Obtener lista de anotaciones"""
     try:
+        logger.info(f"Obteniendo anotaciones: user_id={user_id}, image_id={image_id}, skip={skip}, limit={limit}")
+        
         annotations = await get_annotations_use_case.execute(
             user_id=user_id, image_id=image_id, skip=skip, limit=limit
         )
+        
+        logger.info(f"Anotaciones encontradas: {len(annotations)}")
         
         # Convertir a DTOs de respuesta
         annotation_responses = [_annotation_to_response(ann) for ann in annotations]
@@ -128,6 +144,9 @@ async def get_annotations(
         )
         
     except Exception as e:
+        logger.error(f"Error al obtener anotaciones: {str(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Error interno del servidor: {str(e)}")
 
 @router.get("/{annotation_id}", response_model=AnnotationResponse)

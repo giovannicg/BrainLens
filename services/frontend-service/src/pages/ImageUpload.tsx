@@ -1,11 +1,21 @@
 import React, { useState, useRef } from 'react';
+import { apiService, ImageUploadResponse } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 import './ImageUpload.css';
+
+interface FileWithCustomName {
+  file: File;
+  customName: string;
+}
 
 const ImageUpload: React.FC = () => {
   const [dragActive, setDragActive] = useState(false);
-  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [uploadedFiles, setUploadedFiles] = useState<FileWithCustomName[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [uploadResults, setUploadResults] = useState<ImageUploadResponse[]>([]);
+  const [error, setError] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { user } = useAuth();
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -37,28 +47,58 @@ const ImageUpload: React.FC = () => {
   const handleFiles = (files: FileList) => {
     const newFiles = Array.from(files).filter(file => 
       file.type.startsWith('image/')
-    );
+    ).map(file => ({
+      file,
+      customName: file.name.replace(/\.[^/.]+$/, '') // Remover extensión para el nombre personalizado
+    }));
     setUploadedFiles(prev => [...prev, ...newFiles]);
+    setError('');
   };
 
   const removeFile = (index: number) => {
     setUploadedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
+  const updateCustomName = (index: number, customName: string) => {
+    setUploadedFiles(prev => prev.map((item, i) => 
+      i === index ? { ...item, customName } : item
+    ));
+  };
+
   const handleUpload = async () => {
     if (uploadedFiles.length === 0) return;
+    if (!user) {
+      setError('Debes estar autenticado para subir imágenes');
+      return;
+    }
 
     setUploading(true);
+    setError('');
+    const results: ImageUploadResponse[] = [];
     
-    // TODO: Implementar llamada a la API
-    console.log('Uploading files:', uploadedFiles);
-    
-    // Simular upload
-    setTimeout(() => {
-      setUploading(false);
+    try {
+      for (const fileWithName of uploadedFiles) {
+        try {
+          const result = await apiService.uploadImage(fileWithName.file, user.id, fileWithName.customName);
+          results.push(result);
+        } catch (error) {
+          console.error('Error uploading file:', fileWithName.file.name, error);
+          setError(`Error al subir ${fileWithName.file.name}: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+        }
+      }
+      
+      setUploadResults(results);
       setUploadedFiles([]);
-      alert('Imágenes subidas exitosamente');
-    }, 2000);
+      
+      if (results.length > 0) {
+        alert(`${results.length} imagen(es) subida(s) exitosamente`);
+      }
+    } catch (error) {
+      console.error('Upload failed:', error);
+      setError('Error al subir las imágenes');
+    } finally {
+      setUploading(false);
+    }
   };
 
   const openFileDialog = () => {
@@ -71,6 +111,12 @@ const ImageUpload: React.FC = () => {
         <h1>Subir Imágenes</h1>
         <p>Sube imágenes médicas para análisis y anotación</p>
       </div>
+
+      {error && (
+        <div className="error-message">
+          {error}
+        </div>
+      )}
 
       <div className="upload-container">
         <div 
@@ -104,13 +150,26 @@ const ImageUpload: React.FC = () => {
           <div className="uploaded-files">
             <h3>Archivos seleccionados ({uploadedFiles.length})</h3>
             <div className="files-list">
-              {uploadedFiles.map((file, index) => (
+              {uploadedFiles.map((fileWithName, index) => (
                 <div key={index} className="file-item">
                   <div className="file-info">
-                    <span className="file-name">{file.name}</span>
-                    <span className="file-size">
-                      {(file.size / 1024 / 1024).toFixed(2)} MB
-                    </span>
+                    <div className="file-header">
+                      <span className="file-name">{fileWithName.file.name}</span>
+                      <span className="file-size">
+                        {(fileWithName.file.size / 1024 / 1024).toFixed(2)} MB
+                      </span>
+                    </div>
+                    <div className="custom-name-input">
+                      <label htmlFor={`custom-name-${index}`}>Nombre personalizado:</label>
+                      <input
+                        type="text"
+                        id={`custom-name-${index}`}
+                        value={fileWithName.customName}
+                        onChange={(e) => updateCustomName(index, e.target.value)}
+                        placeholder="Ingresa un nombre para la imagen"
+                        className="name-input"
+                      />
+                    </div>
                   </div>
                   <button
                     onClick={() => removeFile(index)}
@@ -129,6 +188,22 @@ const ImageUpload: React.FC = () => {
             >
               {uploading ? 'Subiendo...' : 'Subir Imágenes'}
             </button>
+          </div>
+        )}
+
+        {uploadResults.length > 0 && (
+          <div className="upload-results">
+            <h3>Resultados de la subida</h3>
+            <div className="results-list">
+              {uploadResults.map((result, index) => (
+                <div key={index} className="result-item">
+                  <span className="result-success">✅ {result.image.original_filename}</span>
+                  <span className="result-size">
+                    {(result.image.file_size / 1024 / 1024).toFixed(2)} MB
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>

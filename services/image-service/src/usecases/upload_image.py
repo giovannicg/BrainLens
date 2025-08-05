@@ -1,3 +1,4 @@
+import os
 from typing import Optional
 from domain.entities.Image import Image
 from domain.repositories.ImageRepository import ImageRepository
@@ -7,10 +8,10 @@ class UploadImageUseCase:
     def __init__(self, image_repository: ImageRepository):
         self.image_repository = image_repository
     
-    async def execute(self, file_content: bytes, original_filename: str, user_id: str) -> Optional[Image]:
+    async def execute(self, file_content: bytes, original_filename: str, user_id: str, custom_filename: str = None) -> Optional[Image]:
         """Ejecutar el caso de uso de subir imagen"""
         try:
-            # Validar tipo de archivo
+            # Validar tipo de archivo usando el nombre original
             if not storage_service.is_valid_image_type(original_filename):
                 raise ValueError("Tipo de archivo no válido")
             
@@ -26,7 +27,7 @@ class UploadImageUseCase:
             # Crear entidad Image
             image = Image(
                 filename=filename,
-                original_filename=original_filename,
+                original_filename=custom_filename if custom_filename else original_filename,
                 file_path=file_info["file_path"],
                 file_size=file_info["file_size"],
                 mime_type=file_info["mime_type"],
