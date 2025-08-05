@@ -1,6 +1,6 @@
 from typing import List, Optional
 from bson import ObjectId
-from domain.entities.Annotation import Annotation
+from domain.entities.Annotation import Annotation, PyObjectId
 from domain.repositories.AnnotationRepository import AnnotationRepository
 from ..database import database
 from datetime import datetime
@@ -11,7 +11,7 @@ class MongoAnnotationRepository(AnnotationRepository):
     
     async def save(self, annotation: Annotation) -> Annotation:
         """Guardar una anotación en MongoDB"""
-        annotation_dict = annotation.dict(by_alias=True)
+        annotation_dict = annotation.model_dump(by_alias=True)
         if annotation_dict.get("_id") is None:
             annotation_dict["_id"] = ObjectId()
         
@@ -24,7 +24,8 @@ class MongoAnnotationRepository(AnnotationRepository):
         try:
             doc = await self.collection.find_one({"_id": ObjectId(annotation_id)})
             if doc:
-                return Annotation(**doc)
+                doc["_id"] = PyObjectId(str(doc["_id"]))
+                return Annotation.model_validate(doc)
             return None
         except Exception:
             return None
@@ -34,7 +35,8 @@ class MongoAnnotationRepository(AnnotationRepository):
         cursor = self.collection.find({"image_id": image_id})
         annotations = []
         async for doc in cursor:
-            annotations.append(Annotation(**doc))
+            doc["_id"] = PyObjectId(str(doc["_id"]))
+            annotations.append(Annotation.model_validate(doc))
         return annotations
     
     async def find_by_user_id(self, user_id: str) -> List[Annotation]:
@@ -42,7 +44,8 @@ class MongoAnnotationRepository(AnnotationRepository):
         cursor = self.collection.find({"user_id": user_id})
         annotations = []
         async for doc in cursor:
-            annotations.append(Annotation(**doc))
+            doc["_id"] = PyObjectId(str(doc["_id"]))
+            annotations.append(Annotation.model_validate(doc))
         return annotations
     
     async def find_by_status(self, status: str) -> List[Annotation]:
@@ -50,7 +53,8 @@ class MongoAnnotationRepository(AnnotationRepository):
         cursor = self.collection.find({"status": status})
         annotations = []
         async for doc in cursor:
-            annotations.append(Annotation(**doc))
+            doc["_id"] = PyObjectId(str(doc["_id"]))
+            annotations.append(Annotation.model_validate(doc))
         return annotations
     
     async def find_by_category(self, category: str) -> List[Annotation]:
@@ -58,7 +62,8 @@ class MongoAnnotationRepository(AnnotationRepository):
         cursor = self.collection.find({"category": category})
         annotations = []
         async for doc in cursor:
-            annotations.append(Annotation(**doc))
+            doc["_id"] = PyObjectId(str(doc["_id"]))
+            annotations.append(Annotation.model_validate(doc))
         return annotations
     
     async def find_all(self, skip: int = 0, limit: int = 100) -> List[Annotation]:
@@ -66,7 +71,8 @@ class MongoAnnotationRepository(AnnotationRepository):
         cursor = self.collection.find().skip(skip).limit(limit)
         annotations = []
         async for doc in cursor:
-            annotations.append(Annotation(**doc))
+            doc["_id"] = PyObjectId(str(doc["_id"]))
+            annotations.append(Annotation.model_validate(doc))
         return annotations
     
     async def update(self, annotation_id: str, annotation_data: dict) -> Optional[Annotation]:
@@ -106,5 +112,6 @@ class MongoAnnotationRepository(AnnotationRepository):
         cursor = self.collection.find({"status": "pending"})
         annotations = []
         async for doc in cursor:
-            annotations.append(Annotation(**doc))
+            doc["_id"] = PyObjectId(str(doc["_id"]))
+            annotations.append(Annotation.model_validate(doc))
         return annotations 

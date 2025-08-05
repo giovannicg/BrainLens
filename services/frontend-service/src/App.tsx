@@ -8,6 +8,8 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import ImageUpload from './pages/ImageUpload';
+import Images from './pages/Images';
+import ImageAnnotation from './pages/ImageAnnotation';
 import Annotations from './pages/Annotations';
 
 function App() {
@@ -23,7 +25,9 @@ function App() {
               <Route path="/register" element={<Register />} />
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/upload" element={<ImageUpload />} />
+              <Route path="/images" element={<Images />} />
               <Route path="/annotations" element={<Annotations />} />
+              <Route path="/annotate/:imageId" element={<ImageAnnotation />} />
             </Routes>
           </main>
         </div>

@@ -30,10 +30,12 @@ class AnnotationResponse(BaseModel):
 
 class CreateAnnotationRequest(BaseModel):
     image_id: str
+    user_id: str
     title: str
     description: str
     category: str
     confidence: float = 1.0
+    status: str = "pending"
     shapes: List[AnnotationShapeResponse] = []
     metadata: Dict[str, Any] = {}
 

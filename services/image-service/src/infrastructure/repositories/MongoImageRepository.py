@@ -1,6 +1,6 @@
 from typing import List, Optional
 from bson import ObjectId
-from domain.entities.Image import Image
+from domain.entities.Image import Image, PyObjectId
 from domain.repositories.ImageRepository import ImageRepository
 from infrastructure.database import database
 
@@ -10,7 +10,7 @@ class MongoImageRepository(ImageRepository):
     
     async def save(self, image: Image) -> Image:
         """Guardar una imagen en MongoDB"""
-        image_dict = image.dict(by_alias=True)
+        image_dict = image.model_dump(by_alias=True)
         if image_dict.get("_id") is None:
             image_dict["_id"] = ObjectId()
         
@@ -23,7 +23,9 @@ class MongoImageRepository(ImageRepository):
         try:
             doc = await self.collection.find_one({"_id": ObjectId(image_id)})
             if doc:
-                return Image(**doc)
+                # Convertir ObjectId a PyObjectId
+                doc["_id"] = PyObjectId(str(doc["_id"]))
+                return Image.model_validate(doc)
             return None
         except Exception:
             return None
@@ -33,7 +35,9 @@ class MongoImageRepository(ImageRepository):
         cursor = self.collection.find({"user_id": user_id})
         images = []
         async for doc in cursor:
-            images.append(Image(**doc))
+            # Convertir ObjectId a PyObjectId
+            doc["_id"] = PyObjectId(str(doc["_id"]))
+            images.append(Image.model_validate(doc))
         return images
     
     async def find_all(self, skip: int = 0, limit: int = 100) -> List[Image]:
@@ -41,7 +45,9 @@ class MongoImageRepository(ImageRepository):
         cursor = self.collection.find().skip(skip).limit(limit)
         images = []
         async for doc in cursor:
-            images.append(Image(**doc))
+            # Convertir ObjectId a PyObjectId
+            doc["_id"] = PyObjectId(str(doc["_id"]))
+            images.append(Image.model_validate(doc))
         return images
     
     async def update(self, image_id: str, image_data: dict) -> Optional[Image]:
@@ -70,5 +76,7 @@ class MongoImageRepository(ImageRepository):
         cursor = self.collection.find({"processing_status": status})
         images = []
         async for doc in cursor:
-            images.append(Image(**doc))
+            # Convertir ObjectId a PyObjectId
+            doc["_id"] = PyObjectId(str(doc["_id"]))
+            images.append(Image.model_validate(doc))
         return images 

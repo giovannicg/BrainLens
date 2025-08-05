@@ -1,13 +1,18 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Query
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Query, Form
 from fastapi.responses import FileResponse
 from typing import List, Optional
 import os
+import logging
 
 from usecases.upload_image import UploadImageUseCase
 from usecases.get_images import GetImagesUseCase, GetImageByIdUseCase, GetImagesByStatusUseCase
 from usecases.delete_image import DeleteImageUseCase
 from infrastructure.repositories.MongoImageRepository import MongoImageRepository
 from adapters.dtos.image_dto import ImageResponse, ImageUploadResponse, ImageListResponse, ImageDeleteResponse, ErrorResponse
+
+# Configurar logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/images", tags=["images"])
 
@@ -34,15 +39,24 @@ def get_delete_image_use_case(repo: MongoImageRepository = Depends(get_image_rep
 async def upload_image(
     file: UploadFile = File(...),
     user_id: str = Query(..., description="ID del usuario que sube la imagen"),
+    custom_name: Optional[str] = Form(None, description="Nombre personalizado para la imagen"),
     upload_use_case: UploadImageUseCase = Depends(get_upload_use_case)
 ):
     """Subir una nueva imagen"""
     try:
+        logger.info(f"Subiendo imagen: {file.filename}, user_id: {user_id}, custom_name: {custom_name}")
+        
         # Leer contenido del archivo
         file_content = await file.read()
         
+        # Para el caso de uso, siempre pasamos el nombre original del archivo
+        # El nombre personalizado se manejará en el caso de uso
+        original_filename = file.filename
+        custom_filename = custom_name if custom_name else original_filename
+        logger.info(f"Nombre original: {original_filename}, Nombre personalizado: {custom_filename}")
+        
         # Ejecutar caso de uso
-        image = await upload_use_case.execute(file_content, file.filename, user_id)
+        image = await upload_use_case.execute(file_content, original_filename, user_id, custom_filename)
         
         # Convertir a DTO de respuesta
         image_response = ImageResponse(
@@ -65,8 +79,13 @@ async def upload_image(
         )
         
     except ValueError as e:
+        logger.error(f"Error de validación en upload: {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error(f"Error interno en upload: {str(e)}")
+        logger.error(f"Tipo de error: {type(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Error interno del servidor: {str(e)}")
 
 @router.get("/", response_model=ImageListResponse)
@@ -78,26 +97,35 @@ async def get_images(
 ):
     """Obtener lista de imágenes"""
     try:
+        logger.info(f"Obteniendo imágenes para user_id: {user_id}, skip: {skip}, limit: {limit}")
         images = await get_images_use_case.execute(user_id=user_id, skip=skip, limit=limit)
+        logger.info(f"Imágenes obtenidas: {len(images)}")
         
         # Convertir a DTOs de respuesta
         image_responses = []
-        for image in images:
-            image_response = ImageResponse(
-                id=str(image.id),
-                filename=image.filename,
-                original_filename=image.original_filename,
-                file_size=image.file_size,
-                mime_type=image.mime_type,
-                width=image.width,
-                height=image.height,
-                user_id=image.user_id,
-                upload_date=image.upload_date,
-                processing_status=image.processing_status,
-                metadata=image.metadata
-            )
-            image_responses.append(image_response)
+        for i, image in enumerate(images):
+            try:
+                image_response = ImageResponse(
+                    id=str(image.id),
+                    filename=image.filename,
+                    original_filename=image.original_filename,
+                    file_size=image.file_size,
+                    mime_type=image.mime_type,
+                    width=image.width,
+                    height=image.height,
+                    user_id=image.user_id,
+                    upload_date=image.upload_date,
+                    processing_status=image.processing_status,
+                    metadata=image.metadata
+                )
+                image_responses.append(image_response)
+                logger.info(f"Imagen {i+1} convertida exitosamente: {image.filename}")
+            except Exception as img_error:
+                logger.error(f"Error convirtiendo imagen {i+1}: {str(img_error)}")
+                logger.error(f"Datos de la imagen: {image}")
+                raise
         
+        logger.info(f"Total de imágenes convertidas: {len(image_responses)}")
         return ImageListResponse(
             images=image_responses,
             total=len(image_responses),
@@ -106,6 +134,10 @@ async def get_images(
         )
         
     except Exception as e:
+        logger.error(f"Error en get_images: {str(e)}")
+        logger.error(f"Tipo de error: {type(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Error interno del servidor: {str(e)}")
 
 @router.get("/{image_id}", response_model=ImageResponse)
