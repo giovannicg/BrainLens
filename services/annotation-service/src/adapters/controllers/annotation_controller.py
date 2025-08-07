@@ -1,4 +1,5 @@
-from fastapi import APIRouter, HTTPException, Depends, Query
+
+from fastapi import APIRouter, HTTPException, Depends, Query, status
 from typing import List, Optional
 from datetime import datetime
 import logging
@@ -15,18 +16,24 @@ from usecases.get_annotations import (
 )
 from usecases.update_annotation import UpdateAnnotationUseCase, ReviewAnnotationUseCase
 from usecases.delete_annotation import DeleteAnnotationUseCase
-from infrastructure.repositories.MongoAnnotationRepository import MongoAnnotationRepository
 from adapters.gateways.annotation_gateway import AnnotationGateway
 from adapters.dtos.annotation_dto import (
     AnnotationResponse, CreateAnnotationRequest, UpdateAnnotationRequest,
     ReviewAnnotationRequest, AnnotationListResponse, AnnotationCreateResponse,
     AnnotationUpdateResponse, AnnotationDeleteResponse, ErrorResponse
 )
-from infrastructure.database import database
+
+def handle_internal_error(e: Exception, context: str = ""):
+    logger.error(f"Error interno {context}: {str(e)}")
+    import traceback
+    logger.error(f"Traceback: {traceback.format_exc()}")
+    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error interno del servidor: {str(e)}")
 
 router = APIRouter(prefix="/annotations", tags=["annotations"])
 
 # Inyección de dependencias
+
+# Dependency Injection helpers
 def get_annotation_repository():
     return AnnotationGateway()
 
@@ -84,36 +91,26 @@ def _annotation_to_response(annotation) -> AnnotationResponse:
         review_notes=annotation.review_notes
     )
 
-@router.post("/", response_model=AnnotationCreateResponse)
+@router.post("/", response_model=AnnotationCreateResponse, status_code=status.HTTP_201_CREATED)
 async def create_annotation(
     annotation_data: CreateAnnotationRequest,
     create_use_case: CreateAnnotationUseCase = Depends(get_create_use_case)
 ):
     """Crear una nueva anotación"""
+    logger.info(f"Creando anotación: {annotation_data.dict()}")
     try:
-        logger.info(f"Creando anotación: {annotation_data.dict()}")
-        
-        # Ejecutar caso de uso
         annotation = await create_use_case.execute(annotation_data.dict(), annotation_data.user_id)
-        
         logger.info(f"Anotación creada exitosamente: {annotation.id}")
-        
-        # Convertir a DTO de respuesta
         annotation_response = _annotation_to_response(annotation)
-        
         return AnnotationCreateResponse(
             message="Anotación creada exitosamente",
             annotation=annotation_response
         )
-        
     except ValueError as e:
         logger.error(f"Error de validación: {str(e)}")
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
-        logger.error(f"Error interno: {str(e)}")
-        import traceback
-        logger.error(f"Traceback: {traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=f"Error interno del servidor: {str(e)}")
+        handle_internal_error(e, context="al crear anotación")
 
 @router.get("/", response_model=AnnotationListResponse)
 async def get_annotations(
@@ -124,30 +121,21 @@ async def get_annotations(
     get_annotations_use_case: GetAnnotationsUseCase = Depends(get_get_annotations_use_case)
 ):
     """Obtener lista de anotaciones"""
+    logger.info(f"Obteniendo anotaciones: user_id={user_id}, image_id={image_id}, skip={skip}, limit={limit}")
     try:
-        logger.info(f"Obteniendo anotaciones: user_id={user_id}, image_id={image_id}, skip={skip}, limit={limit}")
-        
         annotations = await get_annotations_use_case.execute(
             user_id=user_id, image_id=image_id, skip=skip, limit=limit
         )
-        
         logger.info(f"Anotaciones encontradas: {len(annotations)}")
-        
-        # Convertir a DTOs de respuesta
         annotation_responses = [_annotation_to_response(ann) for ann in annotations]
-        
         return AnnotationListResponse(
             annotations=annotation_responses,
             total=len(annotation_responses),
             skip=skip,
             limit=limit
         )
-        
     except Exception as e:
-        logger.error(f"Error al obtener anotaciones: {str(e)}")
-        import traceback
-        logger.error(f"Traceback: {traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=f"Error interno del servidor: {str(e)}")
+        handle_internal_error(e, context="al obtener anotaciones")
 
 @router.get("/{annotation_id}", response_model=AnnotationResponse)
 async def get_annotation(
@@ -158,11 +146,10 @@ async def get_annotation(
     try:
         annotation = await get_annotation_use_case.execute(annotation_id)
         return _annotation_to_response(annotation)
-        
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error interno del servidor: {str(e)}")
+        handle_internal_error(e, context="al obtener anotación por ID")
 
 @router.get("/status/{status}", response_model=AnnotationListResponse)
 async def get_annotations_by_status(
@@ -173,16 +160,14 @@ async def get_annotations_by_status(
     try:
         annotations = await get_annotations_by_status_use_case.execute(status)
         annotation_responses = [_annotation_to_response(ann) for ann in annotations]
-        
         return AnnotationListResponse(
             annotations=annotation_responses,
             total=len(annotation_responses),
             skip=0,
             limit=len(annotation_responses)
         )
-        
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error interno del servidor: {str(e)}")
+        handle_internal_error(e, context="al obtener anotaciones por estado")
 
 @router.get("/category/{category}", response_model=AnnotationListResponse)
 async def get_annotations_by_category(
@@ -193,16 +178,14 @@ async def get_annotations_by_category(
     try:
         annotations = await get_annotations_by_category_use_case.execute(category)
         annotation_responses = [_annotation_to_response(ann) for ann in annotations]
-        
         return AnnotationListResponse(
             annotations=annotation_responses,
             total=len(annotation_responses),
             skip=0,
             limit=len(annotation_responses)
         )
-        
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error interno del servidor: {str(e)}")
+        handle_internal_error(e, context="al obtener anotaciones por categoría")
 
 @router.get("/pending/reviews", response_model=AnnotationListResponse)
 async def get_pending_reviews(
@@ -212,16 +195,14 @@ async def get_pending_reviews(
     try:
         annotations = await get_pending_reviews_use_case.execute()
         annotation_responses = [_annotation_to_response(ann) for ann in annotations]
-        
         return AnnotationListResponse(
             annotations=annotation_responses,
             total=len(annotation_responses),
             skip=0,
             limit=len(annotation_responses)
         )
-        
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error interno del servidor: {str(e)}")
+        handle_internal_error(e, context="al obtener anotaciones pendientes de revisión")
 
 @router.put("/{annotation_id}", response_model=AnnotationUpdateResponse)
 async def update_annotation(
@@ -231,28 +212,21 @@ async def update_annotation(
 ):
     """Actualizar una anotación"""
     try:
-        # Filtrar campos no nulos
         update_dict = {k: v for k, v in update_data.dict().items() if v is not None}
-        
         if not update_dict:
-            raise ValueError("No se proporcionaron datos para actualizar")
-        
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No se proporcionaron datos para actualizar")
         updated_annotation = await update_annotation_use_case.execute(annotation_id, update_dict)
-        
         if not updated_annotation:
-            raise HTTPException(status_code=404, detail="Anotación no encontrada")
-        
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Anotación no encontrada")
         annotation_response = _annotation_to_response(updated_annotation)
-        
         return AnnotationUpdateResponse(
             message="Anotación actualizada exitosamente",
             annotation=annotation_response
         )
-        
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error interno del servidor: {str(e)}")
+        handle_internal_error(e, context="al actualizar anotación")
 
 @router.post("/{annotation_id}/review", response_model=AnnotationUpdateResponse)
 async def review_annotation(
@@ -266,21 +240,17 @@ async def review_annotation(
         updated_annotation = await review_annotation_use_case.execute(
             annotation_id, review_data.dict(), reviewer_id
         )
-        
         if not updated_annotation:
-            raise HTTPException(status_code=404, detail="Anotación no encontrada")
-        
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Anotación no encontrada")
         annotation_response = _annotation_to_response(updated_annotation)
-        
         return AnnotationUpdateResponse(
             message="Anotación revisada exitosamente",
             annotation=annotation_response
         )
-        
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error interno del servidor: {str(e)}")
+        handle_internal_error(e, context="al revisar anotación")
 
 @router.delete("/{annotation_id}", response_model=AnnotationDeleteResponse)
 async def delete_annotation(
@@ -290,16 +260,14 @@ async def delete_annotation(
     """Eliminar una anotación"""
     try:
         deleted = await delete_annotation_use_case.execute(annotation_id)
-        
         if deleted:
             return AnnotationDeleteResponse(
                 message="Anotación eliminada exitosamente",
                 deleted=True
             )
         else:
-            raise HTTPException(status_code=404, detail="Anotación no encontrada")
-            
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Anotación no encontrada")
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error interno del servidor: {str(e)}")
+        handle_internal_error(e, context="al eliminar anotación")
