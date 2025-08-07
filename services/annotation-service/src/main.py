@@ -1,12 +1,12 @@
+
 import os
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
-
 from infrastructure.database import database
 from adapters.controllers.annotation_controller import router as annotation_router
-
+from config import settings
 load_dotenv()
 
 @asynccontextmanager
@@ -19,32 +19,34 @@ async def lifespan(app: FastAPI):
     await database.close_db()
     print("👋 Annotation Service cerrado")
 
-# Crear aplicación FastAPI
+
+def configure_cors(app: FastAPI):
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.ALLOW_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+def configure_routers(app: FastAPI):
+    app.include_router(annotation_router, prefix="/api/v1")
+
 app = FastAPI(
-    title="BrainLens Annotation Service",
-    description="Servicio para gestión de anotaciones médicas",
-    version="1.0.0",
+    title=settings.APP_TITLE,
+    description=settings.APP_DESCRIPTION,
+    version=settings.APP_VERSION,
     lifespan=lifespan
 )
-
-# Configurar CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # En producción, especificar dominios específicos
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Incluir routers
-app.include_router(annotation_router, prefix="/api/v1")
+configure_cors(app)
+configure_routers(app)
 
 @app.get("/")
 async def root():
     """Endpoint raíz del servicio"""
     return {
-        "service": "BrainLens Annotation Service",
-        "version": "1.0.0",
+        "service": settings.APP_TITLE,
+        "version": settings.APP_VERSION,
         "status": "running",
         "endpoints": {
             "create": "/api/v1/annotations/",
@@ -70,13 +72,9 @@ async def health_check():
 
 if __name__ == "__main__":
     import uvicorn
-    host = os.getenv("HOST", "0.0.0.0")
-    port = int(os.getenv("PORT", "8003"))
-    debug = os.getenv("DEBUG", "false").lower() == "true"
-    
     uvicorn.run(
         "main:app",
-        host=host,
-        port=port,
-        reload=debug
+        host=settings.HOST,
+        port=settings.PORT,
+        reload=settings.DEBUG
     )
