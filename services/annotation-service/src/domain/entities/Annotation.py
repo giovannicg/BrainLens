@@ -3,14 +3,17 @@ from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field, field_validator, model_validator
 from bson import ObjectId
 
+
+from pydantic_core import core_schema
+from pydantic import GetCoreSchemaHandler
+
 class PyObjectId(ObjectId):
     @classmethod
-    def __get_pydantic_json_schema__(cls, field_schema):
-        field_schema.update(type="string")
-
-    @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
+    def __get_pydantic_core_schema__(cls, source, handler: GetCoreSchemaHandler):
+        return core_schema.no_info_after_validator_function(
+            cls.validate,
+            core_schema.str_schema()
+        )
 
     @classmethod
     def validate(cls, v):
