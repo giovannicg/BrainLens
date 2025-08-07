@@ -1,6 +1,6 @@
 from typing import List, Optional
 from bson import ObjectId
-from domain.entities.Annotation import Annotation, PyObjectId
+from domain.entities.Annotation import Annotation
 from domain.repositories.AnnotationRepository import AnnotationRepository
 from ..database import database
 from datetime import datetime
@@ -10,8 +10,22 @@ class MongoAnnotationRepository(AnnotationRepository):
         self.collection = database.get_collection("annotations")
 
     def _doc_to_entity(self, doc) -> Annotation:
-        doc["_id"] = PyObjectId(str(doc["_id"]))
-        return Annotation.model_validate(doc)
+        print(f"DEBUG: _doc_to_entity called with doc: {doc}")
+        # Convertir el _id a string para que Pydantic pueda manejarlo correctamente
+        import logging
+        logging.info(f"Converting doc: {doc}")
+        if "_id" in doc:
+            logging.info(f"Converting _id from {type(doc['_id'])} to string")
+            doc["_id"] = str(doc["_id"])
+            logging.info(f"Converted _id: {doc['_id']}")
+        try:
+            result = Annotation.model_validate(doc)
+            logging.info(f"Successfully converted to Annotation: {result.id}")
+            return result
+        except Exception as e:
+            logging.error(f"Error converting doc to Annotation: {e}")
+            logging.error(f"Doc content: {doc}")
+            raise
 
     async def save(self, annotation: Annotation) -> Annotation:
         """Guardar una anotación en MongoDB"""

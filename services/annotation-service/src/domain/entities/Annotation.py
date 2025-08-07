@@ -7,20 +7,6 @@ from bson import ObjectId
 from pydantic_core import core_schema
 from pydantic import GetCoreSchemaHandler
 
-class PyObjectId(ObjectId):
-    @classmethod
-    def __get_pydantic_core_schema__(cls, source, handler: GetCoreSchemaHandler):
-        return core_schema.no_info_after_validator_function(
-            cls.validate,
-            core_schema.str_schema()
-        )
-
-    @classmethod
-    def validate(cls, v):
-        if not ObjectId.is_valid(v):
-            raise ValueError("Invalid objectid")
-        return ObjectId(v)
-
 class AnnotationPoint(BaseModel):
     x: float
     y: float
@@ -32,7 +18,7 @@ class AnnotationShape(BaseModel):
 
 class Annotation(BaseModel):
     """Modelo de dominio para una anotación médica."""
-    id: Optional[PyObjectId] = Field(default_factory=PyObjectId, alias="_id")
+    id: Optional[str] = Field(default=None, alias="_id")
     image_id: str
     user_id: str
     title: str
