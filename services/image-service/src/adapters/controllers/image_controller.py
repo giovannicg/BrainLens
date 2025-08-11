@@ -8,7 +8,11 @@ from usecases.upload_image import UploadImageUseCase
 from usecases.get_images import GetImagesUseCase, GetImageByIdUseCase, GetImagesByStatusUseCase
 from usecases.delete_image import DeleteImageUseCase
 from infrastructure.repositories.MongoImageRepository import MongoImageRepository
-from adapters.dtos.image_dto import ImageResponse, ImageUploadResponse, ImageListResponse, ImageDeleteResponse, ErrorResponse
+from infrastructure.storage import StorageService
+from adapters.dtos.image_dto import (
+    ImageResponse, ImageUploadResponse, ImageListResponse, ImageDeleteResponse, 
+    ErrorResponse, ProcessingStatusResponse, TumorPredictionResult
+)
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO)
@@ -20,8 +24,14 @@ router = APIRouter(prefix="/images", tags=["images"])
 def get_image_repository():
     return MongoImageRepository()
 
-def get_upload_use_case(repo: MongoImageRepository = Depends(get_image_repository)):
-    return UploadImageUseCase(repo)
+def get_storage_service():
+    return StorageService()
+
+def get_upload_use_case(
+    repo: MongoImageRepository = Depends(get_image_repository),
+    storage: StorageService = Depends(get_storage_service)
+):
+    return UploadImageUseCase(repo, storage)
 
 def get_get_images_use_case(repo: MongoImageRepository = Depends(get_image_repository)):
     return GetImagesUseCase(repo)
@@ -42,7 +52,7 @@ async def upload_image(
     custom_name: Optional[str] = Form(None, description="Nombre personalizado para la imagen"),
     upload_use_case: UploadImageUseCase = Depends(get_upload_use_case)
 ):
-    """Subir una nueva imagen"""
+    """Subir una nueva imagen e iniciar procesamiento en background"""
     try:
         logger.info(f"Subiendo imagen: {file.filename}, user_id: {user_id}, custom_name: {custom_name}")
         
@@ -74,8 +84,9 @@ async def upload_image(
         )
         
         return ImageUploadResponse(
-            message="Imagen subida exitosamente",
-            image=image_response
+            message="Imagen subida exitosamente. El análisis de tumores se está procesando en background.",
+            image=image_response,
+            processing_status=image.processing_status
         )
         
     except ValueError as e:
@@ -86,6 +97,62 @@ async def upload_image(
         logger.error(f"Tipo de error: {type(e)}")
         import traceback
         logger.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Error interno del servidor: {str(e)}")
+
+@router.get("/{image_id}/processing-status", response_model=ProcessingStatusResponse)
+async def get_processing_status(
+    image_id: str,
+    get_image_use_case: GetImageByIdUseCase = Depends(get_get_image_by_id_use_case)
+):
+    """Obtener el estado del procesamiento de una imagen"""
+    try:
+        image = await get_image_use_case.execute(image_id)
+        
+        # Extraer información del procesamiento
+        processing_started = None
+        processing_completed = None
+        prediction = None
+        
+        if image.metadata:
+            if 'processing_started' in image.metadata:
+                processing_started = image.metadata['processing_started']
+            if 'processing_completed' in image.metadata:
+                processing_completed = image.metadata['processing_completed']
+            if 'tumor_analysis' in image.metadata:
+                tumor_data = image.metadata['tumor_analysis']
+                prediction = TumorPredictionResult(
+                    es_tumor=tumor_data['es_tumor'],
+                    clase_predicha=tumor_data['clase_predicha'],
+                    confianza=tumor_data['confianza'],
+                    probabilidades=tumor_data['probabilidades'],
+                    recomendacion=tumor_data['recomendacion']
+                )
+        
+        # Generar mensaje según el estado
+        if image.processing_status == "pending":
+            message = "La imagen está en cola para procesamiento"
+        elif image.processing_status == "processing":
+            message = "La imagen se está procesando actualmente"
+        elif image.processing_status == "completed":
+            message = "El análisis se ha completado exitosamente"
+        elif image.processing_status == "failed":
+            error_msg = image.metadata.get('processing_error', 'Error desconocido') if image.metadata else 'Error desconocido'
+            message = f"El procesamiento falló: {error_msg}"
+        else:
+            message = f"Estado desconocido: {image.processing_status}"
+        
+        return ProcessingStatusResponse(
+            image_id=str(image.id),
+            status=image.processing_status,
+            message=message,
+            prediction=prediction,
+            processing_started=processing_started,
+            processing_completed=processing_completed
+        )
+        
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error interno del servidor: {str(e)}")
 
 @router.get("/", response_model=ImageListResponse)

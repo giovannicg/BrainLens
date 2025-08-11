@@ -17,6 +17,18 @@ services:
     networks:
       - brainlens-network
 
+  # Redis para Celery
+  redis:
+    image: redis:7-alpine
+    container_name: brainlens-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - brainlens-network
+
   # Auth Service
   auth-service:
     build: ./services/auth-service
@@ -45,6 +57,9 @@ services:
       - DATABASE_NAME=brainlens
       - STORAGE_TYPE=local
       - LOCAL_STORAGE_PATH=/app/storage
+      - MODEL_PATH=/app/modelo_multiclase.h5
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - HOST=0.0.0.0
       - PORT=8002
       - DEBUG=true
@@ -52,12 +67,54 @@ services:
       - "8002:8002"
     volumes:
       - image_storage:/app/storage
+      - ./modelo_multiclase.h5:/app/modelo_multiclase.h5:ro
     depends_on:
       - mongodb
+      - redis
     networks:
       - brainlens-network
 
-  # Annotation Service
+  # Celery Worker para Image Service
+  image-service-worker:
+    build: ./services/image-service
+    container_name: brainlens-image-worker
+    restart: unless-stopped
+    environment:
+      - MONGODB_URL=mongodb://admin:password@mongodb:27017
+      - DATABASE_NAME=brainlens
+      - MODEL_PATH=/app/modelo_multiclase.h5
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - CELERY_WORKER_CONCURRENCY=2
+      - CELERY_TASK_TIME_LIMIT=300
+    volumes:
+      - image_storage:/app/storage
+      - ./modelo_multiclase.h5:/app/modelo_multiclase.h5:ro
+    depends_on:
+      - mongodb
+      - redis
+    networks:
+      - brainlens-network
+    command: ["python", "/app/start_celery_worker.py"]
+
+  # Flower para monitoreo de Celery
+  flower:
+    build: ./services/image-service
+    container_name: brainlens-flower
+    restart: unless-stopped
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+      - image-service-worker
+    networks:
+      - brainlens-network
+    command: ["celery", "-A", "src.tasks.tumor_analysis_tasks", "flower", "--port=5555", "--broker=redis://redis:6379/0"]
+    working_dir: /app/src
+
   # Annotation Service
   annotation-service:
     build: ./services/annotation-service
@@ -92,6 +149,8 @@ volumes:
   mongodb_data:
     driver: local
   image_storage:
+    driver: local
+  redis_data:
     driver: local
 
 networks:

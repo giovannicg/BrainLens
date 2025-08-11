@@ -197,12 +197,30 @@ const ImageUpload: React.FC = () => {
             <div className="results-list">
               {uploadResults.map((result, index) => (
                 <div key={index} className="result-item">
-                  <span className="result-success">✅ {result.image.original_filename}</span>
-                  <span className="result-size">
-                    {(result.image.file_size / 1024 / 1024).toFixed(2)} MB
-                  </span>
+                  <div className="result-header">
+                    <span className="result-success">✅ {result.image.original_filename}</span>
+                    <span className="result-size">
+                      {(result.image.file_size / 1024 / 1024).toFixed(2)} MB
+                    </span>
+                  </div>
+                  <div className="result-status">
+                    <span className="status-label">Estado:</span>
+                    <span className={`status-${result.processing_status}`}>
+                      {result.processing_status === 'pending' && '⏳ En cola para procesamiento'}
+                      {result.processing_status === 'processing' && '🔄 Procesando...'}
+                      {result.processing_status === 'completed' && '✅ Procesamiento completado'}
+                      {result.processing_status === 'failed' && '❌ Error en procesamiento'}
+                    </span>
+                  </div>
+                  <div className="result-message">
+                    {result.message}
+                  </div>
                 </div>
               ))}
+            </div>
+            <div className="processing-info">
+              <h4>ℹ️ Información sobre el procesamiento</h4>
+              <p>Las imágenes se procesan automáticamente en background para detectar tumores cerebrales. Puedes ver el progreso en la página "Mis Imágenes".</p>
             </div>
           </div>
         )}

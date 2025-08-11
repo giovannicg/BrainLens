@@ -2,20 +2,41 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiService, ImageResponse } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import { useProcessingStatus } from '../hooks/useProcessingStatus';
+import PredictionResults from '../components/PredictionResults';
 import './Images.css';
 
 const Images: React.FC = () => {
   const [images, setImages] = useState<ImageResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
+  const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
   const { user } = useAuth();
   const navigate = useNavigate();
+
+  // Hook para el estado de procesamiento de la imagen seleccionada
+  const { status: processingStatus } = useProcessingStatus({
+    imageId: selectedImageId || '',
+    enabled: !!selectedImageId && (selectedImageId === 'pending' || selectedImageId === 'processing'),
+    interval: 3000
+  });
 
   useEffect(() => {
     if (user) {
       loadImages();
     }
   }, [user]);
+
+  // Actualizar imagen cuando cambie el estado de procesamiento
+  useEffect(() => {
+    if (processingStatus && selectedImageId) {
+      setImages(prev => prev.map(img => 
+        img.id === selectedImageId 
+          ? { ...img, processing_status: processingStatus.status }
+          : img
+      ));
+    }
+  }, [processingStatus, selectedImageId]);
 
   const loadImages = async () => {
     if (!user) return;
@@ -58,6 +79,10 @@ const Images: React.FC = () => {
     document.body.removeChild(link);
   };
 
+  const handleViewPrediction = (imageId: string) => {
+    setSelectedImageId(selectedImageId === imageId ? null : imageId);
+  };
+
   const formatFileSize = (bytes: number): string => {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
@@ -69,36 +94,61 @@ const Images: React.FC = () => {
   const formatDate = (dateString: string): string => {
     return new Date(dateString).toLocaleDateString('es-ES', {
       year: 'numeric',
-      month: 'long',
+      month: 'short',
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit'
     });
   };
 
-  if (!user) {
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return '#27ae60';
+      case 'processing':
+        return '#f39c12';
+      case 'pending':
+        return '#3498db';
+      case 'failed':
+        return '#e74c3c';
+      default:
+        return '#666';
+    }
+  };
+
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return 'Completado';
+      case 'processing':
+        return 'Procesando';
+      case 'pending':
+        return 'Pendiente';
+      case 'failed':
+        return 'Falló';
+      default:
+        return status;
+    }
+  };
+
+  if (error) {
     return (
-      <div className="images-page">
-        <div className="images-header">
-          <h1>Mis Imágenes</h1>
-          <p>Debes iniciar sesión para ver tus imágenes</p>
+      <div className="images-container">
+        <div className="error-message">
+          {error}
         </div>
       </div>
     );
   }
 
   return (
-    <div className="images-page">
+    <div className="images-container">
       <div className="images-header">
         <h1>Mis Imágenes</h1>
-        <p>Gestiona las imágenes que has subido</p>
+        <button onClick={() => navigate('/upload')} className="upload-button">
+          📤 Subir Nueva Imagen
+        </button>
       </div>
-
-      {error && (
-        <div className="error-message">
-          {error}
-        </div>
-      )}
 
       {loading ? (
         <div className="loading">
@@ -150,8 +200,11 @@ const Images: React.FC = () => {
                   )}
                   <span className="detail-item">
                     <strong>Estado:</strong> 
-                    <span className={`status-${image.processing_status}`}>
-                      {image.processing_status}
+                    <span 
+                      className={`status-${image.processing_status}`}
+                      style={{ color: getStatusColor(image.processing_status) }}
+                    >
+                      {getStatusText(image.processing_status)}
                     </span>
                   </span>
                   <span className="detail-item">
@@ -180,6 +233,22 @@ const Images: React.FC = () => {
                   🗑️ Eliminar
                 </button>
               </div>
+
+              {/* Mostrar resultados de predicción si está completado */}
+              {image.processing_status === 'completed' && processingStatus?.prediction && (
+                <div className="prediction-section">
+                  <button
+                    onClick={() => handleViewPrediction(image.id)}
+                    className="prediction-toggle"
+                  >
+                    {selectedImageId === image.id ? '🔽' : '🔼'} Ver Resultados del Análisis
+                  </button>
+                  
+                  {selectedImageId === image.id && (
+                    <PredictionResults prediction={processingStatus.prediction} />
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </div>

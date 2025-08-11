@@ -54,6 +54,7 @@ export interface ImageListResponse {
 export interface ImageUploadResponse {
   message: string;
   image: ImageResponse;
+  processing_status: string;
 }
 
 export interface AnnotationPoint {
@@ -100,6 +101,21 @@ export interface AnnotationResponse {
 export interface AnnotationListResponse {
   annotations: AnnotationResponse[];
   total: number;
+}
+
+export interface ProcessingStatusResponse {
+  image_id: string;
+  status: string;
+  message: string;
+  prediction?: {
+    es_tumor: boolean;
+    clase_predicha: string;
+    confianza: number;
+    probabilidades: Record<string, number>;
+    recomendacion: string;
+  };
+  processing_started?: string;
+  processing_completed?: string;
 }
 
 class ApiService {
@@ -197,6 +213,24 @@ class ApiService {
       return await response.json();
     } catch (error) {
       console.error('Image upload failed:', error);
+      throw error;
+    }
+  }
+
+  async getProcessingStatus(imageId: string): Promise<ProcessingStatusResponse> {
+    const url = `${this.imageApiUrl}/api/v1/images/${imageId}/processing-status`;
+    
+    try {
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Get processing status failed:', error);
       throw error;
     }
   }

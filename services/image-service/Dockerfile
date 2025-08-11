@@ -3,12 +3,34 @@ FROM python:3.12-slim
 # Establecer directorio de trabajo
 WORKDIR /app
 
-# Instalar dependencias del sistema con actualizaciones de seguridad
+# Instalar dependencias del sistema necesarias para TensorFlow y Redis
 RUN apt-get update && apt-get install -y \
     gcc \
+    g++ \
+    libc6-dev \
+    libffi-dev \
+    libssl-dev \
+    libxml2-dev \
+    libxslt1-dev \
+    zlib1g-dev \
+    libjpeg-dev \
+    libpng-dev \
+    libfreetype6-dev \
+    liblcms2-dev \
+    libopenjp2-7-dev \
+    libtiff5-dev \
+    libwebp-dev \
+    libharfbuzz-dev \
+    libfribidi-dev \
+    libxcb1-dev \
+    pkg-config \
+    redis-tools \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
     && rm -rf /tmp/* /var/tmp/*
+
+# Actualizar pip
+RUN pip install --upgrade pip
 
 # Copiar requirements
 COPY requirements.txt .
@@ -18,6 +40,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copiar código de la aplicación
 COPY src/ ./src/
+
+# Copiar scripts
+COPY start_celery_worker.py .
 
 # Cambiar al directorio src
 WORKDIR /app/src
@@ -32,6 +57,12 @@ USER app
 
 # Exponer puerto
 EXPOSE 8002
+
+# Variables de entorno para TensorFlow y Celery
+ENV TF_CPP_MIN_LOG_LEVEL=2
+ENV PYTHONPATH=/app/src
+ENV CELERY_BROKER_URL=redis://redis:6379/0
+ENV CELERY_RESULT_BACKEND=redis://redis:6379/0
 
 # Comando para ejecutar la aplicación
 CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8002"]

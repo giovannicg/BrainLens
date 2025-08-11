@@ -22,7 +22,7 @@ async def lifespan(app: FastAPI):
 # Crear aplicación FastAPI
 app = FastAPI(
     title="BrainLens Image Service",
-    description="Servicio para gestión de imágenes médicas",
+    description="Servicio para gestión de imágenes médicas con análisis de tumores en background",
     version="1.0.0",
     lifespan=lifespan
 )
@@ -46,13 +46,26 @@ async def root():
         "service": "BrainLens Image Service",
         "version": "1.0.0",
         "status": "running",
+        "description": "Servicio para gestión de imágenes médicas con análisis automático de tumores cerebrales",
         "endpoints": {
             "upload": "/api/v1/images/upload",
             "list": "/api/v1/images/",
             "get_by_id": "/api/v1/images/{image_id}",
             "get_by_status": "/api/v1/images/status/{status}",
             "delete": "/api/v1/images/{image_id}",
-            "download": "/api/v1/images/download/{image_id}"
+            "download": "/api/v1/images/download/{image_id}",
+            "processing_status": "/api/v1/images/{image_id}/processing-status"
+        },
+        "processing_states": {
+            "pending": "Imagen en cola para procesamiento",
+            "processing": "Imagen siendo procesada",
+            "completed": "Análisis completado",
+            "failed": "Error en el procesamiento"
+        },
+        "ai_features": {
+            "tumor_detection": "Análisis automático de tumores cerebrales usando EfficientNetB3",
+            "background_processing": "Procesamiento asíncrono con Celery",
+            "supported_classes": ["glioma", "meningioma", "no_tumor", "pituitary"]
         }
     }
 
@@ -62,7 +75,8 @@ async def health_check():
     return {
         "status": "healthy",
         "service": "image-service",
-        "database": "connected" if database.client else "disconnected"
+        "database": "connected" if database.client else "disconnected",
+        "background_processing": "enabled"
     }
 
 if __name__ == "__main__":
