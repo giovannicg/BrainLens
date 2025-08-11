@@ -2,7 +2,7 @@
 __pycache__/
 *.py[codz]
 *$py.class
-
+modelo_multiclase.h5
 # C extensions
 *.so
 
