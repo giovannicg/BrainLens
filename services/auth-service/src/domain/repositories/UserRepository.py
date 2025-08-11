@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Optional, List
-from domain.entities.User import User
+from ..entities.User import User
 
 class UserRepository(ABC):
     """Interfaz del repositorio de usuarios"""
