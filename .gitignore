@@ -205,3 +205,8 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Ignore ML models
+modelo_multiclase.h5
+modelo_multiclase_compatible.h5
+*.h5
