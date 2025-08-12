@@ -17,7 +17,7 @@ Este servicio permite subir imágenes de resonancia magnética (MRI) y procesarl
 - Redis (para Celery)
 - TensorFlow 2.16.0+
 - MongoDB
-- Modelo entrenado (`modelo_multiclase.h5`)
+- Modelo entrenado (`modelo_multiclase_final.keras`)
 - Docker y Docker Compose
 
 ## 🛠️ Instalación
@@ -28,7 +28,7 @@ Este servicio permite subir imágenes de resonancia magnética (MRI) y procesarl
 
 ```bash
 # Desde el directorio raíz del proyecto
-cp modelo_multiclase.h5 .
+cp modelo_multiclase_final.keras .
 ```
 
 #### 2. Ejecutar con Docker Compose
@@ -68,7 +68,7 @@ Crear archivo `.env`:
 ```env
 MONGODB_URL=mongodb://admin:password@localhost:27017
 DATABASE_NAME=brainlens
-MODEL_PATH=modelo_multiclase.h5
+MODEL_PATH=modelo_multiclase_final.keras
 CELERY_BROKER_URL=redis://localhost:6379/0
 CELERY_RESULT_BACKEND=redis://localhost:6379/0
 HOST=0.0.0.0
@@ -91,7 +91,7 @@ docker run -d --name redis -p 6379:6379 redis:alpine
 
 ```bash
 # Copiar el modelo desde el directorio raíz
-cp ../../modelo_multiclase.h5 .
+cp ../../modelo_multiclase_final.keras .
 ```
 
 #### 5. Ejecutar servicios
@@ -309,7 +309,7 @@ CELERY_WORKER_CONCURRENCY=2
 CELERY_TASK_TIME_LIMIT=300
 
 # Configuración del modelo
-MODEL_PATH=modelo_multiclase.h5
+MODEL_PATH=modelo_multiclase_final.keras
 IMG_SIZE=300
 BATCH_SIZE=1
 
@@ -359,10 +359,10 @@ docker-compose restart redis
 
 ```bash
 # Verificar que el modelo existe en el directorio raíz
-ls -la modelo_multiclase.h5
+ls -la modelo_multiclase_final.keras
 
 # Copiar el modelo si no existe
-cp ../../modelo_multiclase.h5 .
+cp ../../modelo_multiclase_final.keras .
 ```
 
 ### Error: "Celery worker not responding"
