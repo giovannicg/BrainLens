@@ -11,6 +11,8 @@ import ImageUpload from './pages/ImageUpload';
 import Images from './pages/Images';
 import ImageAnnotation from './pages/ImageAnnotation';
 import Annotations from './pages/Annotations';
+import Predictions from './pages/Predictions';
+import PredictionResultsPage from './pages/PredictionResults';
 
 function App() {
   return (
@@ -27,7 +29,9 @@ function App() {
               <Route path="/upload" element={<ImageUpload />} />
               <Route path="/images" element={<Images />} />
               <Route path="/annotations" element={<Annotations />} />
+              <Route path="/predictions" element={<Predictions />} />
               <Route path="/annotate/:imageId" element={<ImageAnnotation />} />
+              <Route path="/prediction/:imageId" element={<PredictionResultsPage />} />
             </Routes>
           </main>
         </div>

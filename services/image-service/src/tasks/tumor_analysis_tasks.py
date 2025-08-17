@@ -57,6 +57,10 @@ def analyze_tumor_task(self, image_id: str):
         logger.info(f"Enviando imagen {image_id} al servicio de Colab...")
         prediction_result = send_to_colab_service_sync(image_data)
         
+        # Verificar que tenemos un resultado válido
+        if not prediction_result:
+            raise ValueError("No se recibió resultado válido del servicio de Colab")
+        
         # Actualizar estado a "completed" con resultados
         update_data = {
             "processing_status": "completed",
@@ -67,7 +71,7 @@ def analyze_tumor_task(self, image_id: str):
         
         loop.run_until_complete(repo.update(str(image_entity.id), update_data))
         
-        logger.info(f"Análisis completado para imagen {image_id}: {prediction_result['clase_predicha']}")
+        logger.info(f"Análisis completado para imagen {image_id}: {prediction_result.get('clase_predicha', 'unknown')}")
         
         return {
             'status': 'success',
@@ -98,25 +102,28 @@ def send_to_colab_service_sync(image_data: bytes) -> dict:
     """Enviar imagen al servicio de Colab para procesamiento (versión síncrona)"""
     try:
         import requests
-        import base64
+        import io
+        from PIL import Image
         
-        # Convertir imagen a base64
-        image_base64 = base64.b64encode(image_data).decode('utf-8')
+        # Crear un archivo temporal en memoria
+        image_file = io.BytesIO(image_data)
         
-        # Preparar payload
-        payload = {
-            "image_data": image_base64,
-            "timestamp": datetime.utcnow().isoformat()
+        # Enviar al servicio de Colab usando multipart/form-data
+        colab_url = "http://colab-service:8004/predict"
+        
+        files = {
+            'image': ('image.jpg', image_file, 'image/jpeg')
         }
         
-        # Enviar al servicio de Colab
-        colab_url = "http://colab-service:8004/predict"
+        data = {
+            'use_colab': 'true'  # Usar Colab por defecto
+        }
         
         response = requests.post(
             colab_url,
-            json=payload,
-            timeout=60,
-            headers={'Content-Type': 'application/json'}
+            files=files,
+            data=data,
+            timeout=60
         )
         
         if response.status_code == 200:

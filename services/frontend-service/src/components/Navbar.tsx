@@ -40,10 +40,10 @@ const Navbar: React.FC = () => {
                 Mis Imágenes
               </Link>
               <Link 
-                to="/annotations" 
-                className={`navbar-link ${location.pathname === '/annotations' ? 'active' : ''}`}
+                to="/predictions" 
+                className={`navbar-link ${location.pathname === '/predictions' ? 'active' : ''}`}
               >
-                Anotaciones
+                Predicciones
               </Link>
               <Link 
                 to="/dashboard" 

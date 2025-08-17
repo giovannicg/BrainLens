@@ -1,73 +1,6 @@
-# SCRIPT PARA CONFIGURAR NGROK EN TU NOTEBOOK DE COLAB
+# CÓDIGO PARA AGREGAR AL FINAL DE TU NOTEBOOK DE COLAB
 # =====================================================
 
-print("🔧 CONFIGURACIÓN DE NGROK PARA COLAB")
-print("=" * 50)
-
-print("""
-📋 PASOS PARA CONFIGURAR NGROK:
-
-1️⃣ OBTENER TOKEN DE NGROK:
-   - Ve a https://ngrok.com/
-   - Crea una cuenta gratuita
-   - Ve a "Your Authtoken" en el dashboard
-   - Copia tu token (algo como: 2abc123def456ghi789jkl)
-
-2️⃣ INSTALAR NGROK EN TU NOTEBOOK:
-   !pip install pyngrok
-
-3️⃣ CONFIGURAR EL TOKEN:
-""")
-
-print("""
-# Configurar ngrok
-from pyngrok import ngrok
-
-# Configurar tu token de autenticación
-ngrok.set_auth_token('TU_TOKEN_AQUI')  # Reemplaza con tu token real
-
-# Exponer el puerto 8081 (donde está tu servidor Flask)
-public_url = ngrok.connect(8081)
-print(f"🌐 URL pública de ngrok: {public_url}")
-
-# La URL será algo como: https://abc123.ngrok.io
-# Copia esta URL y úsala en el siguiente paso
-""")
-
-print("""
-3️⃣ ACTUALIZAR EL SERVICIO DE COLAB:
-   Una vez que tengas la URL de ngrok, ejecuta este comando:
-""")
-
-print("""
-curl -X POST http://localhost:8004/configure -H "Content-Type: application/json" \\
-  -d '{"notebook_url": "TU_URL_DE_NGROK_AQUI"}'
-""")
-
-print("""
-4️⃣ PROBAR LA CONEXIÓN:
-   curl -X GET TU_URL_DE_NGROK_AQUI/health
-""")
-
-print("""
-⚠️ IMPORTANTE:
-- La URL de ngrok cambia cada vez que reinicies el notebook
-- Necesitarás actualizar la configuración cada vez
-- ngrok es gratuito pero tiene limitaciones de uso
-""")
-
-print("""
-🎯 ALTERNATIVA MÁS SIMPLE:
-Si prefieres probar localmente primero, puedes:
-1. Ejecutar el notebook en tu máquina local
-2. Usar http://localhost:8081/predict en el servicio de Colab
-""")
-
-print("""
-📝 CÓDIGO COMPLETO PARA COLAB:
-""")
-
-print("""
 # Celda 1: Instalar dependencias
 !pip install pyngrok flask flask-cors
 
@@ -83,7 +16,7 @@ import io
 import base64
 
 # Configurar tu token de autenticación de ngrok
-ngrok.set_auth_token('TU_TOKEN_AQUI')  # Reemplaza con tu token real
+# ngrok.set_auth_token('TU_TOKEN_AQUI')  # Reemplaza con tu token real
 
 # Celda 3: Crear servidor Flask
 app = Flask(__name__)
@@ -109,22 +42,22 @@ def predict():
         if img.mode != 'RGB':
             img = img.convert('RGB')
         
-        img = img.resize((224, 224))
-        img_array = np.array(img) / 255.0
-        img_array = np.expand_dims(img_array, axis=0)
+        img = img.resize((300, 300))  # Tamaño usado en entrenamiento
+        img_array = np.array(img) / 255.0  # Normalizar
+        img_array = np.expand_dims(img_array, axis=0)  # Añadir dimensión batch
         
         # Hacer predicción
         predictions = model.predict(img_array, verbose=0)
         
-        # Mapear clases
-        classes = ['glioma', 'meningioma', 'no_tumor', 'pituitary']
+        # Mapear clases (según tu entrenamiento)
+        classes = ['glioma', 'meningioma', 'notumor', 'pituitary']
         predicted_class_idx = np.argmax(predictions[0])
         predicted_class = classes[predicted_class_idx]
         confidence = float(predictions[0][predicted_class_idx])
         
         # Crear resultado
         result = {
-            "es_tumor": predicted_class != "no_tumor",
+            "es_tumor": predicted_class != "notumor",
             "clase_predicha": predicted_class,
             "confianza": confidence,
             "probabilidades": {
@@ -133,7 +66,7 @@ def predict():
         }
         
         # Agregar recomendación
-        if predicted_class == "no_tumor":
+        if predicted_class == "notumor":
             result["recomendacion"] = "✅ No se ha detectado ningún tumor. Continuar con revisiones rutinarias."
         else:
             result["recomendacion"] = f"⚠️ Se ha detectado un posible tumor de tipo {predicted_class}. Se recomienda consultar con un especialista."
@@ -141,6 +74,9 @@ def predict():
         return jsonify({"prediction": result})
         
     except Exception as e:
+        print(f"Error en predict: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 # Celda 4: Iniciar servidor con ngrok
@@ -151,4 +87,3 @@ if __name__ == '__main__':
     
     # Iniciar servidor Flask
     app.run(host='0.0.0.0', port=8081)
-""")
