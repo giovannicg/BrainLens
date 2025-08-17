@@ -112,7 +112,7 @@ services:
       - image-service-worker
     networks:
       - brainlens-network
-    command: ["celery", "-A", "src.tasks.tumor_analysis_tasks", "flower", "--port=5555"]
+    command: ["celery", "flower", "--port=5555", "--broker=redis://redis:6379/0"]
     working_dir: /app
 
   # Annotation Service

@@ -90,8 +90,7 @@ async def predict_tumor(
                 result = await process_with_colab(image_data)
             except Exception as e:
                 logger.error(f"Error con Colab: {str(e)}")
-                logger.info("Usando procesamiento local como fallback...")
-                result = await process_locally(image_data)
+                raise Exception(f"No se pudo conectar al notebook de Colab: {str(e)}")
         else:
             # Procesar localmente (fallback)
             result = await process_locally(image_data)
@@ -203,27 +202,7 @@ async def send_to_colab_via_api(payload: Dict) -> Dict[str, Any]:
         logger.error(f"Error enviando a Colab: {str(e)}")
         raise
 
-async def process_locally(image_data: bytes) -> Dict[str, Any]:
-    """Procesar imagen localmente como fallback básico"""
-    
-    logger.info("Procesando imagen localmente (fallback)...")
-    
-    # Simular procesamiento básico
-    await asyncio.sleep(1)
-    
-    return {
-        "es_tumor": False,
-        "clase_predicha": "no_tumor",
-        "confianza": 0.90,
-        "probabilidades": {
-            "glioma": 0.03,
-            "meningioma": 0.02,
-            "no_tumor": 0.90,
-            "pituitary": 0.05
-        },
-        "recomendacion": "✅ No se ha detectado ningún tumor. Continuar con revisiones rutinarias.",
-        "method": "local_fallback"
-    }
+
 
 @app.get("/status")
 async def get_status():

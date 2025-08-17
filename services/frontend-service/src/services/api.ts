@@ -42,6 +42,7 @@ export interface ImageResponse {
   upload_date: string;
   processing_status: string;
   metadata: Record<string, any>;
+  prediction?: any; // Datos de predicción del tumor
 }
 
 export interface ImageListResponse {
