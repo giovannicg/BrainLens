@@ -113,6 +113,23 @@ Este pipeline está implementado en el método `_preprocess_image` del procesado
 - Exportar el modelo en formatos adicionales (SavedModel/ONNX) para despliegues heterogéneos.
 - Registrar versión del modelo y trazabilidad de inferencias para auditoría.
 
+### 4.7 Chat Visual con VLM (añadido)
+Se incorporó un flujo de conversación sobre imágenes mediante un modelo Visión‑Lenguaje (VLM):
+- Backend (`image-service`): endpoints `GET/POST /api/v1/images/{image_id}/chat`.
+- Persistencia: colección `image_chats` con mensajes (`user|assistant`).
+- Gateway VLM: `VisionLanguageGateway` soporta `Ollama` (por defecto) y `OpenAI`.
+- Idioma: variables `VLM_SYSTEM_PROMPT` y `VLM_FORCE_SPANISH` para respuestas en español.
+- Frontend: página `ImageChat` (`/chat/:imageId`) con UI tipo ChatGPT/Perplexity.
+
+### Despliegue VLM (Ollama)
+- Servicio Docker `ollama` en el puerto 11434.
+- Modelo recomendado para español y equipos modestos: `minicpm-v`.
+```bash
+docker exec -it brainlens-ollama ollama pull minicpm-v
+# Reiniciar backend para asegurar configuración
+docker compose up -d image-service
+```
+
 ## 5. Seguridad y Cumplimiento
 
 ### 5.1 Medidas de Seguridad

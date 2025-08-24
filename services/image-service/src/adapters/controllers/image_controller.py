@@ -8,11 +8,15 @@ from usecases.upload_image import UploadImageUseCase
 from usecases.get_images import GetImagesUseCase, GetImageByIdUseCase, GetImagesByStatusUseCase
 from usecases.delete_image import DeleteImageUseCase
 from infrastructure.repositories.MongoImageRepository import MongoImageRepository
+from infrastructure.repositories.MongoChatRepository import MongoChatRepository
 from infrastructure.storage import StorageService
 from adapters.dtos.image_dto import (
     ImageResponse, ImageUploadResponse, ImageListResponse, ImageDeleteResponse, 
     ErrorResponse, ProcessingStatusResponse, TumorPredictionResult
 )
+from adapters.dtos.chat_dto import ChatRequest, ChatResponse, ChatHistoryResponse, ChatMessageDTO
+from usecases.chat_about_image import ChatAboutImageUseCase
+from adapters.gateways.vlm_gateway import VisionLanguageGateway
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO)
@@ -44,6 +48,13 @@ def get_get_images_by_status_use_case(repo: MongoImageRepository = Depends(get_i
 
 def get_delete_image_use_case(repo: MongoImageRepository = Depends(get_image_repository)):
     return DeleteImageUseCase(repo)
+
+def get_chat_use_case(
+    img_repo: MongoImageRepository = Depends(get_image_repository),
+    chat_repo: MongoChatRepository = Depends(lambda: MongoChatRepository()),
+    vlm: VisionLanguageGateway = Depends(lambda: VisionLanguageGateway()),
+):
+    return ChatAboutImageUseCase(chat_repo=chat_repo, image_repo=img_repo, vlm=vlm)
 
 @router.post("/upload", response_model=ImageUploadResponse)
 async def upload_image(
@@ -98,6 +109,66 @@ async def upload_image(
         import traceback
         logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Error interno del servidor: {str(e)}")
+
+@router.get("/{image_id}/chat", response_model=ChatHistoryResponse)
+async def get_chat_history(
+    image_id: str,
+    user_id: str = Query(..., description="ID del usuario"),
+    limit: int = Query(50, ge=1, le=200),
+    chat_use_case: ChatAboutImageUseCase = Depends(get_chat_use_case),
+):
+    try:
+        history = await chat_use_case.get_history(image_id=image_id, user_id=user_id, limit=limit)
+        messages = [
+            ChatMessageDTO(
+                id=m.id,
+                image_id=m.image_id,
+                user_id=m.user_id,
+                role=m.role,
+                content=m.content,
+                timestamp=m.timestamp,
+            )
+            for m in history
+        ]
+        return ChatHistoryResponse(messages=messages, total=len(messages))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error obteniendo historial: {str(e)}")
+
+@router.post("/{image_id}/chat", response_model=ChatResponse)
+async def chat_about_image(
+    image_id: str,
+    body: ChatRequest,
+    user_id: str = Query(..., description="ID del usuario"),
+    chat_use_case: ChatAboutImageUseCase = Depends(get_chat_use_case),
+):
+    try:
+        assistant_msg = await chat_use_case.ask(image_id=image_id, user_id=user_id, prompt=body.message)
+        msg_dto = ChatMessageDTO(
+            id=assistant_msg.id,
+            image_id=assistant_msg.image_id,
+            user_id=assistant_msg.user_id,
+            role=assistant_msg.role,
+            content=assistant_msg.content,
+            timestamp=assistant_msg.timestamp,
+        )
+        # opcional: devolver último historial corto
+        history = await chat_use_case.get_history(image_id=image_id, user_id=user_id, limit=50)
+        history_dto = [
+            ChatMessageDTO(
+                id=m.id,
+                image_id=m.image_id,
+                user_id=m.user_id,
+                role=m.role,
+                content=m.content,
+                timestamp=m.timestamp,
+            )
+            for m in history
+        ]
+        return ChatResponse(answer=assistant_msg.content, message=msg_dto, history=history_dto)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error en chat: {str(e)}")
 
 @router.get("/{image_id}/processing-status", response_model=ProcessingStatusResponse)
 async def get_processing_status(
@@ -304,7 +375,9 @@ async def download_image(
         image = await get_image_use_case.execute(image_id)
         
         if not os.path.exists(image.file_path):
-            raise HTTPException(status_code=404, detail="Archivo no encontrado en el servidor")
+            # Log extra y detalle del path
+            logger.error(f"Archivo no encontrado: {image.file_path}")
+            raise HTTPException(status_code=404, detail=f"Archivo no encontrado en el servidor: {image.file_path}")
         
         return FileResponse(
             path=image.file_path,

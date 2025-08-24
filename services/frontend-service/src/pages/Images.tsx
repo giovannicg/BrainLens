@@ -106,6 +106,8 @@ const Images: React.FC = () => {
             <div key={image.id} className="image-card">
               <div className="image-preview">
                 <img
+                  onClick={() => navigate(`/chat/${image.id}`)}
+                  style={{ cursor: 'pointer' }}
                   src={apiService.getImageDownloadUrl(image.id)}
                   alt={image.original_filename}
                   onError={(e) => {
