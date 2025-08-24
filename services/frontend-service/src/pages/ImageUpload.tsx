@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { apiService, ImageUploadResponse } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import './ImageUpload.css';
@@ -16,6 +17,7 @@ const ImageUpload: React.FC = () => {
   const [error, setError] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -214,6 +216,11 @@ const ImageUpload: React.FC = () => {
                   </div>
                   <div className="result-message">
                     {result.message}
+                  </div>
+                  <div style={{ marginTop: 8 }}>
+                    <button onClick={() => navigate(`/chat/${result.image.id}`)} className="action-button">
+                      💬 Ir al chat de la imagen
+                    </button>
                   </div>
                 </div>
               ))}

@@ -13,6 +13,7 @@ import ImageAnnotation from './pages/ImageAnnotation';
 import Annotations from './pages/Annotations';
 import Predictions from './pages/Predictions';
 import PredictionResultsPage from './pages/PredictionResults';
+import ImageChat from './pages/ImageChat';
 
 function App() {
   return (
@@ -32,6 +33,7 @@ function App() {
               <Route path="/predictions" element={<Predictions />} />
               <Route path="/annotate/:imageId" element={<ImageAnnotation />} />
               <Route path="/prediction/:imageId" element={<PredictionResultsPage />} />
+              <Route path="/chat/:imageId" element={<ImageChat />} />
             </Routes>
           </main>
         </div>

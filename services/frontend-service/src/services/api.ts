@@ -119,6 +119,31 @@ export interface ProcessingStatusResponse {
   processing_completed?: string;
 }
 
+// Chat sobre imagen
+export interface ChatMessageDTO {
+  id?: string;
+  image_id: string;
+  user_id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: string;
+}
+
+export interface ChatHistoryResponse {
+  messages: ChatMessageDTO[];
+  total: number;
+}
+
+export interface ChatRequest {
+  message: string;
+}
+
+export interface ChatResponseDTO {
+  answer: string;
+  message: ChatMessageDTO;
+  history?: ChatMessageDTO[];
+}
+
 class ApiService {
   private baseUrl: string;
   private imageApiUrl: string;
@@ -257,6 +282,20 @@ class ApiService {
 
   getImageDownloadUrl(imageId: string): string {
     return `${this.imageApiUrl}/api/v1/images/download/${imageId}`;
+  }
+
+  // Image Chat methods
+  async getImageChatHistory(imageId: string, userId: string, limit: number = 50): Promise<ChatHistoryResponse> {
+    const params = new URLSearchParams({ user_id: userId, limit: String(limit) });
+    return this.request<ChatHistoryResponse>(`/api/v1/images/${imageId}/chat?${params.toString()}` , {}, true);
+  }
+
+  async sendImageChatMessage(imageId: string, userId: string, message: string): Promise<ChatResponseDTO> {
+    const params = new URLSearchParams({ user_id: userId });
+    return this.request<ChatResponseDTO>(`/api/v1/images/${imageId}/chat?${params.toString()}`, {
+      method: 'POST',
+      body: JSON.stringify({ message }),
+    }, true);
   }
 
   // Annotation methods

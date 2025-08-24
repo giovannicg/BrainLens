@@ -36,6 +36,14 @@ Proporcionar una solución completa para el análisis automático de imágenes d
                        │   Worker        │    │   Puerto 5555   │
                        │                 │    │                 │
                        └─────────────────┘    └─────────────────┘
+
+                           ▲
+                           │
+                   ┌─────────────────┐
+                   │     Ollama      │
+                   │  (VLM Docker)   │
+                   │  Puerto 11434   │
+                   └─────────────────┘
 ```
 
 ---
@@ -110,7 +118,7 @@ services/image-service/
 - **Análisis automático**: Detección de tumores con IA
 - **Procesamiento asíncrono**: Análisis en background con Celery
 - **Estados de procesamiento**: Seguimiento del estado de análisis
-- **Descarga de imágenes**: Acceso seguro a archivos
+- **Chat visual**: Conversación sobre una imagen con un modelo visión-lenguaje (VLM)
 
 #### 🧠 Análisis de IA
 - **Modelo**: EfficientNetB3 entrenado para detección de tumores
@@ -129,6 +137,16 @@ services/image-service/
 - `DELETE /api/v1/images/{image_id}` - Eliminar imagen
 - `GET /api/v1/images/download/{image_id}` - Descargar imagen
 - `GET /api/v1/images/{image_id}/processing-status` - Estado de procesamiento
+
+#### 💬 Chat Visual: Diseño y Persistencia
+- **Repositorio**: `MongoChatRepository` (colección `image_chats`)
+- **Entidad**: `ChatMessage` con `image_id`, `user_id`, `role` (`user|assistant`), `content`, `timestamp`
+- **Gateway VLM**: `VisionLanguageGateway` con soporte `Ollama` (por defecto) y `OpenAI`
+- **ENV**:
+  - `VLM_PROVIDER=ollama|openai`
+  - `VLM_MODEL=minicpm-v` (recomendado en español)
+  - `OLLAMA_BASE_URL=http://ollama:11434`
+  - `VLM_SYSTEM_PROMPT` y `VLM_FORCE_SPANISH=true` para forzar respuestas en español
 
 #### 🛠️ Tecnologías Utilizadas
 - **FastAPI**: API REST moderna
@@ -225,6 +243,7 @@ services/frontend-service/
 - **Images** (`/images`): Galería de imágenes
 - **Annotations** (`/annotations`): Gestión de anotaciones
 - **ImageAnnotation** (`/annotate/:imageId`): Herramienta de anotación
+- **ImageChat** (`/chat/:imageId`): Chat visual tipo ChatGPT/Perplexity con vista previa, sugerencias y envío optimista.
 
 #### 🛠️ Tecnologías Utilizadas
 - **React**: Framework de interfaz de usuario
@@ -300,6 +319,7 @@ services/frontend-service/
 6. **flower**: Monitoreo de Celery
 7. **annotation-service**: Servicio de anotaciones
 8. **frontend-service**: Interfaz de usuario
+9. **ollama**: Servidor VLM (modelos visión-lenguaje) para el chat visual
 
 ### 🔧 Volúmenes Persistentes
 - **mongodb_data**: Datos de MongoDB
@@ -401,6 +421,11 @@ docker-compose ps
 
 # Ver logs
 docker-compose logs -f
+
+# Descargar un modelo VLM multilingüe en Ollama para el chat
+docker exec -it brainlens-ollama ollama pull minicpm-v
+# Reiniciar image-service para leer variables
+docker compose up -d image-service
 ```
 
 ### 🌐 Acceso a Servicios
@@ -411,6 +436,7 @@ docker-compose logs -f
 - **Flower (Monitoreo)**: http://localhost:5555
 - **MongoDB**: localhost:27017
 - **Redis**: localhost:6379
+- **Ollama (VLM)**: http://localhost:11434
 
 ---
 

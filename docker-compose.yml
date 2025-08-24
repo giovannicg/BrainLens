@@ -27,6 +27,18 @@ services:
     networks:
       - brainlens-network
 
+  # Ollama (LLaMA en Docker)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: brainlens-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - brainlens-network
+
   # Auth Service
   auth-service:
     build: ./services/auth-service
@@ -55,9 +67,14 @@ services:
       - DATABASE_NAME=brainlens
       - STORAGE_TYPE=local
       - LOCAL_STORAGE_PATH=/app/storage
-      - MODEL_PATH=/app/modelo_multiclase_final.keras
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      # VLM: usar Ollama dentro de la red de Docker
+      - VLM_PROVIDER=ollama
+      - VLM_MODEL=minicpm-v
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - VLM_SYSTEM_PROMPT=Responde SIEMPRE en español de forma clara y clínica cuando corresponda.
+      - VLM_FORCE_SPANISH=true
       - HOST=0.0.0.0
       - PORT=8002
       - DEBUG=true
@@ -69,6 +86,7 @@ services:
     depends_on:
       - mongodb
       - redis
+      - ollama
     networks:
       - brainlens-network
 
@@ -169,6 +187,8 @@ volumes:
   image_storage:
     driver: local
   redis_data:
+    driver: local
+  ollama_data:
     driver: local
 
 networks:
