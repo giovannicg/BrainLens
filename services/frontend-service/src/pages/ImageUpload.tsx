@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiService, ImageUploadResponse } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -7,17 +7,70 @@ import './ImageUpload.css';
 interface FileWithCustomName {
   file: File;
   customName: string;
+  id: string; // Identificador único para cada archivo
+}
+
+interface UploadProgress {
+  [key: string]: {
+    status: 'pending' | 'uploading' | 'completed' | 'error';
+    progress: number;
+    result?: ImageUploadResponse;
+    error?: string;
+  };
 }
 
 const ImageUpload: React.FC = () => {
   const [dragActive, setDragActive] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<FileWithCustomName[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress>({});
   const [uploadResults, setUploadResults] = useState<ImageUploadResponse[]>([]);
   const [error, setError] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { user } = useAuth();
   const navigate = useNavigate();
+
+  // Persistir estado en localStorage
+  useEffect(() => {
+    const savedFiles = localStorage.getItem('uploadedFiles');
+    const savedProgress = localStorage.getItem('uploadProgress');
+    const savedResults = localStorage.getItem('uploadResults');
+    
+    if (savedFiles) {
+      try {
+        const parsedFiles = JSON.parse(savedFiles);
+        // No podemos restaurar los objetos File directamente, pero podemos mostrar los nombres
+        console.log('Archivos guardados encontrados:', parsedFiles);
+      } catch (e) {
+        console.error('Error al cargar archivos guardados:', e);
+      }
+    }
+    
+    if (savedProgress) {
+      try {
+        setUploadProgress(JSON.parse(savedProgress));
+      } catch (e) {
+        console.error('Error al cargar progreso guardado:', e);
+      }
+    }
+    
+    if (savedResults) {
+      try {
+        setUploadResults(JSON.parse(savedResults));
+      } catch (e) {
+        console.error('Error al cargar resultados guardados:', e);
+      }
+    }
+  }, []);
+
+  // Guardar estado en localStorage cuando cambie
+  useEffect(() => {
+    localStorage.setItem('uploadProgress', JSON.stringify(uploadProgress));
+  }, [uploadProgress]);
+
+  useEffect(() => {
+    localStorage.setItem('uploadResults', JSON.stringify(uploadResults));
+  }, [uploadResults]);
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -51,18 +104,19 @@ const ImageUpload: React.FC = () => {
       file.type.startsWith('image/')
     ).map(file => ({
       file,
-      customName: file.name.replace(/\.[^/.]+$/, '') // Remover extensión para el nombre personalizado
+      customName: file.name.replace(/\.[^/.]+$/, ''), // Remover extensión para el nombre personalizado
+      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}` // ID único
     }));
-    setUploadedFiles(prev => [...prev, ...newFiles]);
+    setUploadedFiles((prev: FileWithCustomName[]) => [...prev, ...newFiles]);
     setError('');
   };
 
   const removeFile = (index: number) => {
-    setUploadedFiles(prev => prev.filter((_, i) => i !== index));
+    setUploadedFiles((prev: FileWithCustomName[]) => prev.filter((_: FileWithCustomName, i: number) => i !== index));
   };
 
   const updateCustomName = (index: number, customName: string) => {
-    setUploadedFiles(prev => prev.map((item, i) => 
+    setUploadedFiles((prev: FileWithCustomName[]) => prev.map((item: FileWithCustomName, i: number) => 
       i === index ? { ...item, customName } : item
     ));
   };
@@ -80,20 +134,65 @@ const ImageUpload: React.FC = () => {
     
     try {
       for (const fileWithName of uploadedFiles) {
+        // Inicializar progreso para este archivo
+        setUploadProgress((prev: UploadProgress) => ({
+          ...prev,
+          [fileWithName.id]: {
+            status: 'uploading',
+            progress: 0
+          }
+        }));
+
         try {
           const result = await apiService.uploadImage(fileWithName.file, user.id, fileWithName.customName);
           results.push(result);
+          
+          // Actualizar progreso como completado
+          setUploadProgress((prev: UploadProgress) => ({
+            ...prev,
+            [fileWithName.id]: {
+              status: 'completed',
+              progress: 100,
+              result
+            }
+          }));
+          
         } catch (error) {
           console.error('Error uploading file:', fileWithName.file.name, error);
-          setError(`Error al subir ${fileWithName.file.name}: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+          const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+          
+          // Actualizar progreso con error
+          setUploadProgress((prev: UploadProgress) => ({
+            ...prev,
+            [fileWithName.id]: {
+              status: 'error',
+              progress: 0,
+              error: errorMessage
+            }
+          }));
+          
+          setError(`Error al subir ${fileWithName.file.name}: ${errorMessage}`);
         }
       }
       
-      setUploadResults(results);
+      setUploadResults((prev: ImageUploadResponse[]) => [...prev, ...results]);
       setUploadedFiles([]);
       
       if (results.length > 0) {
-        alert(`${results.length} imagen(es) subida(s) exitosamente`);
+        // Mostrar notificación más amigable
+        const successCount = results.length;
+        const totalCount = uploadedFiles.length;
+        const message = `${successCount} de ${totalCount} imagen(es) subida(s) exitosamente`;
+        
+        // Crear notificación visual en lugar de alert
+        const notification = document.createElement('div');
+        notification.className = 'upload-notification success';
+        notification.textContent = message;
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+          document.body.removeChild(notification);
+        }, 5000);
       }
     } catch (error) {
       console.error('Upload failed:', error);
@@ -105,6 +204,13 @@ const ImageUpload: React.FC = () => {
 
   const openFileDialog = () => {
     fileInputRef.current?.click();
+  };
+
+  const clearResults = () => {
+    setUploadResults([]);
+    setUploadProgress({});
+    localStorage.removeItem('uploadResults');
+    localStorage.removeItem('uploadProgress');
   };
 
   return (
@@ -153,7 +259,7 @@ const ImageUpload: React.FC = () => {
             <h3>Archivos seleccionados ({uploadedFiles.length})</h3>
             <div className="files-list">
               {uploadedFiles.map((fileWithName, index) => (
-                <div key={index} className="file-item">
+                <div key={fileWithName.id} className="file-item">
                   <div className="file-info">
                     <div className="file-header">
                       <span className="file-name">{fileWithName.file.name}</span>
@@ -162,10 +268,10 @@ const ImageUpload: React.FC = () => {
                       </span>
                     </div>
                     <div className="custom-name-input">
-                      <label htmlFor={`custom-name-${index}`}>Nombre personalizado:</label>
+                      <label htmlFor={`custom-name-${fileWithName.id}`}>Nombre personalizado:</label>
                       <input
                         type="text"
-                        id={`custom-name-${index}`}
+                        id={`custom-name-${fileWithName.id}`}
                         value={fileWithName.customName}
                         onChange={(e) => updateCustomName(index, e.target.value)}
                         placeholder="Ingresa un nombre para la imagen"
@@ -193,9 +299,46 @@ const ImageUpload: React.FC = () => {
           </div>
         )}
 
+        {/* Mostrar progreso de subida */}
+        {Object.keys(uploadProgress).length > 0 && (
+          <div className="upload-progress">
+            <h3>Progreso de subida</h3>
+            <div className="progress-list">
+              {Object.entries(uploadProgress).map(([fileId, progress]) => (
+                <div key={fileId} className={`progress-item ${progress.status}`}>
+                  <div className="progress-header">
+                    <span className="progress-status">
+                      {progress.status === 'uploading' && '⏳ Subiendo...'}
+                      {progress.status === 'completed' && '✅ Completado'}
+                      {progress.status === 'error' && '❌ Error'}
+                    </span>
+                    <span className="progress-percentage">{progress.progress}%</span>
+                  </div>
+                  {progress.status === 'uploading' && (
+                    <div className="progress-bar">
+                      <div 
+                        className="progress-fill" 
+                        style={{ width: `${progress.progress}%` }}
+                      ></div>
+                    </div>
+                  )}
+                  {progress.error && (
+                    <div className="progress-error">{progress.error}</div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {uploadResults.length > 0 && (
           <div className="upload-results">
-            <h3>Resultados de la subida</h3>
+            <div className="results-header">
+              <h3>Resultados de la subida</h3>
+              <button onClick={clearResults} className="clear-results">
+                Limpiar resultados
+              </button>
+            </div>
             <div className="results-list">
               {uploadResults.map((result, index) => (
                 <div key={index} className="result-item">
@@ -240,6 +383,7 @@ const ImageUpload: React.FC = () => {
           <li>Formatos soportados: JPG, PNG, DICOM</li>
           <li>Tamaño máximo por archivo: 50MB</li>
           <li>Se procesarán automáticamente después de la subida</li>
+          <li>El progreso se guarda automáticamente - puedes cambiar de pestaña sin perder información</li>
         </ul>
       </div>
     </div>

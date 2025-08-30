@@ -16,9 +16,12 @@ class ImageResponse(BaseModel):
     metadata: Optional[Dict[str, Any]] = None
 
 class ImageUploadResponse(BaseModel):
+    success: bool
     message: str
-    image: ImageResponse
-    processing_status: str = Field(..., description="Estado del procesamiento (pending/completed/failed)")
+    job_id: Optional[str] = None
+    status: str = Field(..., description="Estado del procesamiento (validating/completed/failed)")
+    image: Optional[ImageResponse] = None
+    processing_status: Optional[str] = None
 
 class ImageListResponse(BaseModel):
     images: List[ImageResponse]

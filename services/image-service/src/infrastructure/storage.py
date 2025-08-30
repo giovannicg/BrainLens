@@ -20,6 +20,7 @@ class StorageService:
         if self.storage_type == "local":
             os.makedirs(self.local_storage_path, exist_ok=True)
             os.makedirs(os.path.join(self.local_storage_path, "images"), exist_ok=True)
+            os.makedirs(os.path.join(self.local_storage_path, "staging"), exist_ok=True)
     
     async def save_image(self, file_content: bytes, original_filename: str, user_id: str) -> Tuple[str, dict]:
         """Guardar una imagen y retornar información del archivo"""
@@ -107,6 +108,20 @@ class StorageService:
     def get_max_file_size(self) -> int:
         """Obtener el tamaño máximo de archivo permitido (50MB)"""
         return 50 * 1024 * 1024  # 50MB
+
+    async def save_to_staging(self, file_content: bytes, staging_filename: str) -> str:
+        """Guardar archivo en staging para validación"""
+        # Ruta completa del archivo en staging
+        staging_path = os.path.join(self.local_storage_path, "staging", staging_filename)
+        
+        # Asegurar que el directorio de staging existe
+        os.makedirs(os.path.dirname(staging_path), exist_ok=True)
+        
+        # Guardar archivo
+        async with aiofiles.open(staging_path, 'wb') as f:
+            await f.write(file_content)
+        
+        return staging_path
 
 # Instancia global del servicio de almacenamiento
 storage_service = StorageService()

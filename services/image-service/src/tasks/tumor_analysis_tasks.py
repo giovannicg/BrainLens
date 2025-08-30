@@ -1,40 +1,148 @@
-import os
+import asyncio
 import logging
 from datetime import datetime
 from celery import Celery
-
-from domain.entities.Image import Image as ImageEntity
 from infrastructure.database import database
 from infrastructure.repositories.MongoImageRepository import MongoImageRepository
-
-# Configurar Celery
-celery_app = Celery('tumor_analysis')
-celery_app.config_from_object('tasks.celery_config')
+from infrastructure.medical_image_validator import MedicalImageValidator
 
 logger = logging.getLogger(__name__)
 
+# Configuración de Celery
+celery_app = Celery('image_service')
+celery_app.config_from_object('tasks.celery_config')
+
 @celery_app.task(bind=True)
-def analyze_tumor_task(self, image_id: str):
-    """Tarea en background para analizar tumores en una imagen usando Colab"""
+def validate_medical_image_task(self, image_id: str, file_content: bytes, mime_type: str):
+    """Tarea en background para validar si una imagen es una tomografía cerebral"""
     try:
-        logger.info(f"Iniciando análisis de tumor para imagen: {image_id}")
+        logger.info(f"Iniciando validación médica para imagen: {image_id}")
         
-        # Conectar a la base de datos
-        import asyncio
+        # Crear loop de asyncio para ejecutar validación
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         
-        try:
-            loop.run_until_complete(database.connect_db())
-        except:
-            pass  # Ya conectado
-        
-        # Obtener la imagen de la base de datos
+        # Conectar a base de datos
+        loop.run_until_complete(database.connect_db())
         repo = MongoImageRepository()
-        image_entity = loop.run_until_complete(repo.find_by_id(image_id))
         
+        # Actualizar estado a "validating"
+        update_data = {
+            "processing_status": "validating",
+            "metadata.processing_status": "validating",
+            "metadata.medical_validation": {
+                "status": "processing",
+                "descripcion": "Validando si es tomografía cerebral..."
+            }
+        }
+        loop.run_until_complete(repo.update(str(image_id), update_data))
+        
+        # Ejecutar validación médica con timeout
+        try:
+            validator = MedicalImageValidator()
+            is_valid_ct, validation_info = loop.run_until_complete(
+                asyncio.wait_for(
+                    validator.validate_brain_ct(file_content, mime_type),
+                    timeout=60.0  # Timeout de 60 segundos
+                )
+            )
+            
+            # Actualizar resultado de validación
+            validation_update = {
+                "metadata.medical_validation": {
+                    "status": "completed" if is_valid_ct else "failed",
+                    "is_valid_ct": is_valid_ct,
+                    "descripcion": validation_info.get("descripcion", ""),
+                    "completed_at": datetime.utcnow().isoformat()
+                }
+            }
+            loop.run_until_complete(repo.update(str(image_id), validation_update))
+            
+            if not is_valid_ct:
+                logger.warning(f"Validación médica fallida para imagen {image_id}: {validation_info.get('descripcion', '')}")
+                # Marcar como fallido - NO continuar con procesamiento
+                failed_update = {
+                    "processing_status": "failed",
+                    "metadata.processing_error": f"La imagen no es una tomografía cerebral válida. {validation_info.get('descripcion', '')}",
+                    "metadata.processing_completed": datetime.utcnow().isoformat(),
+                    "metadata.processing_status": "failed"
+                }
+                loop.run_until_complete(repo.update(str(image_id), failed_update))
+                return {"status": "failed", "reason": "invalid_medical_image"}
+            
+            logger.info(f"Validación médica exitosa para imagen: {image_id}")
+            
+            # Si la validación fue exitosa, iniciar procesamiento de tumor
+            analyze_tumor_task.delay(image_id)
+            
+            return {"status": "success", "next_task": "tumor_analysis"}
+            
+        except asyncio.TimeoutError:
+            logger.error(f"Timeout en validación médica para imagen: {image_id}")
+            # Marcar como fallido por timeout - NO continuar con procesamiento
+            validation_update = {
+                "metadata.medical_validation": {
+                    "status": "timeout",
+                    "descripcion": "Validación médica tardó demasiado tiempo - no se pudo verificar si es una tomografía cerebral válida",
+                    "completed_at": datetime.utcnow().isoformat()
+                }
+            }
+            loop.run_until_complete(repo.update(str(image_id), validation_update))
+            
+            # Marcar como fallido - NO continuar con procesamiento
+            failed_update = {
+                "processing_status": "failed",
+                "metadata.processing_error": "Validación médica tardó demasiado tiempo. No se pudo verificar si la imagen es una tomografía cerebral válida.",
+                "metadata.processing_completed": datetime.utcnow().isoformat(),
+                "metadata.processing_status": "failed"
+            }
+            loop.run_until_complete(repo.update(str(image_id), failed_update))
+            return {"status": "failed", "reason": "validation_timeout"}
+        
+    except Exception as e:
+        logger.error(f"Error en validación médica: {str(e)}")
+        # Actualizar estado a "failed"
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(database.connect_db())
+            repo = MongoImageRepository()
+            
+            update_data = {
+                "processing_status": "failed",
+                "metadata.processing_error": f"Error en validación médica: {str(e)}",
+                "metadata.processing_completed": datetime.utcnow().isoformat(),
+                "metadata.processing_status": "failed",
+                "metadata.medical_validation": {
+                    "status": "error",
+                    "descripcion": f"Error en validación médica: {str(e)}",
+                    "completed_at": datetime.utcnow().isoformat()
+                }
+            }
+            loop.run_until_complete(repo.update(str(image_id), update_data))
+        except:
+            pass
+        raise
+
+@celery_app.task(bind=True)
+def analyze_tumor_task(self, image_id: str):
+    """Tarea en background para analizar tumores en una imagen"""
+    try:
+        logger.info(f"Iniciando análisis de tumor para imagen: {image_id}")
+        
+        # Crear loop de asyncio
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        # Conectar a base de datos
+        loop.run_until_complete(database.connect_db())
+        repo = MongoImageRepository()
+        
+        # Obtener imagen
+        image_entity = loop.run_until_complete(repo.find_by_id(image_id))
         if not image_entity:
-            raise ValueError(f"Imagen con ID {image_id} no encontrada")
+            logger.error(f"Imagen no encontrada: {image_id}")
+            raise Exception("Imagen no encontrada")
         
         # Actualizar estado a "processing"
         update_data = {
@@ -42,113 +150,28 @@ def analyze_tumor_task(self, image_id: str):
             "metadata.processing_started": datetime.utcnow().isoformat(),
             "metadata.processing_status": "processing"
         }
-        
         loop.run_until_complete(repo.update(str(image_entity.id), update_data))
         
-        # Verificar que el archivo existe
-        if not os.path.exists(image_entity.file_path):
-            raise FileNotFoundError(f"Archivo de imagen no encontrado: {image_entity.file_path}")
-        
-        # Leer el archivo de imagen
-        with open(image_entity.file_path, 'rb') as f:
-            image_data = f.read()
-        
-        # Enviar imagen al servicio de Colab
-        logger.info(f"Enviando imagen {image_id} al servicio de Colab...")
-        prediction_result = send_to_colab_service_sync(image_data)
-        
-        # Verificar que tenemos un resultado válido
-        if not prediction_result:
-            raise ValueError("No se recibió resultado válido del servicio de Colab")
-        
-        # Actualizar estado a "completed" con resultados
-        update_data = {
-            "processing_status": "completed",
-            "metadata.tumor_analysis": prediction_result,
-            "metadata.processing_completed": datetime.utcnow().isoformat(),
-            "metadata.processing_status": "completed"
-        }
-        
-        loop.run_until_complete(repo.update(str(image_entity.id), update_data))
-        
-        logger.info(f"Análisis completado para imagen {image_id}: {prediction_result.get('clase_predicha', 'unknown')}")
-        
-        return {
-            'status': 'success',
-            'image_id': image_id,
-            'prediction': prediction_result
-        }
+        # Por ahora, marcar como fallido ya que no hay sistema de predicción disponible
+        logger.info(f"No hay sistema de predicción disponible para imagen {image_id}")
+        raise Exception("Sistema de predicción no disponible")
         
     except Exception as e:
         logger.error(f"Error en análisis de tumor: {str(e)}")
-        
         # Actualizar estado a "failed"
         try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(database.connect_db())
+            repo = MongoImageRepository()
+            
             update_data = {
                 "processing_status": "failed",
                 "metadata.processing_error": str(e),
                 "metadata.processing_completed": datetime.utcnow().isoformat(),
                 "metadata.processing_status": "failed"
             }
-            
             loop.run_until_complete(repo.update(str(image_entity.id), update_data))
         except:
             pass
-        
-        # Re-raise la excepción para que Celery la maneje
         raise
-
-def send_to_colab_service_sync(image_data: bytes) -> dict:
-    """Enviar imagen al servicio de Colab para procesamiento (versión síncrona)"""
-    try:
-        import requests
-        import io
-        from PIL import Image
-        
-        # Crear un archivo temporal en memoria
-        image_file = io.BytesIO(image_data)
-        
-        # Enviar al servicio de Colab usando multipart/form-data
-        colab_url = "http://colab-service:8004/predict"
-        
-        files = {
-            'image': ('image.jpg', image_file, 'image/jpeg')
-        }
-        
-        data = {
-            'use_colab': 'true'  # Usar Colab por defecto
-        }
-        
-        response = requests.post(
-            colab_url,
-            files=files,
-            data=data,
-            timeout=60
-        )
-        
-        if response.status_code == 200:
-            result = response.json()
-            logger.info("✅ Respuesta recibida del servicio de Colab")
-            return result.get('prediction', {})
-        else:
-            logger.error(f"❌ Error en servicio de Colab: {response.status_code}")
-            logger.error(f"Respuesta: {response.text}")
-            raise Exception(f"Error en servicio de Colab: {response.status_code}")
-            
-    except Exception as e:
-        logger.error(f"Error enviando a servicio de Colab: {str(e)}")
-        # Fallback: resultado básico
-        logger.info("Usando resultado básico como fallback...")
-        return {
-            "es_tumor": False,
-            "clase_predicha": "no_tumor",
-            "confianza": 0.90,
-            "probabilidades": {
-                "glioma": 0.03,
-                "meningioma": 0.02,
-                "no_tumor": 0.90,
-                "pituitary": 0.05
-            },
-            "recomendacion": "✅ No se ha detectado ningún tumor. Continuar con revisiones rutinarias.",
-            "method": "fallback"
-        }
