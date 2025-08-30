@@ -29,7 +29,7 @@ services:
 
   # Ollama (LLaMA en Docker)
   ollama:
-    image: ollama/ollama:latest
+    image: ollama/ollama:0.11.8
     container_name: brainlens-ollama
     restart: unless-stopped
     ports:
@@ -69,12 +69,14 @@ services:
       - LOCAL_STORAGE_PATH=/app/storage
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      # VLM: usar Ollama dentro de la red de Docker
+      # VLM: usar modelo disponible
       - VLM_PROVIDER=ollama
-      - VLM_MODEL=minicpm-v
+      - VLM_MODEL=llava:7b
       - OLLAMA_BASE_URL=http://ollama:11434
-      - VLM_SYSTEM_PROMPT=Responde SIEMPRE en español de forma clara y clínica cuando corresponda.
+      - VLM_SYSTEM_PROMPT=Eres un asistente médico especializado en análisis de imágenes radiológicas. Tu función es analizar imágenes médicas y proporcionar observaciones detalladas sobre lo que ves en la imagen, incluyendo posibles hallazgos, anomalías o características relevantes. Responde SIEMPRE en español de forma clara y profesional. Puedes describir lo que observas en la imagen y proporcionar información educativa sobre los hallazgos.
+      - VLM_VALIDATOR_SYSTEM_PROMPT=Eres un validador médico especializado. Tu única función es responder SÍ o NO a preguntas simples sobre imágenes médicas. Responde siempre de forma clara y directa.
       - VLM_FORCE_SPANISH=true
+      - VLM_TIMEOUT=120
       - HOST=0.0.0.0
       - PORT=8002
       - DEBUG=true
@@ -82,7 +84,6 @@ services:
       - "8002:8002"
     volumes:
       - image_storage:/app/storage
-      - ./modelo_multiclase_final.keras:/app/modelo_multiclase_final.keras:ro
     depends_on:
       - mongodb
       - redis
@@ -105,7 +106,6 @@ services:
       - CELERY_TASK_TIME_LIMIT=300
     volumes:
       - image_storage:/app/storage
-      - ./modelo_multiclase_final.keras:/app/modelo_multiclase_final.keras:ro
     depends_on:
       - mongodb
       - redis

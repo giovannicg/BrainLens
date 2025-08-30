@@ -7,14 +7,17 @@ import logging
 from usecases.upload_image import UploadImageUseCase
 from usecases.get_images import GetImagesUseCase, GetImageByIdUseCase, GetImagesByStatusUseCase
 from usecases.delete_image import DeleteImageUseCase
+from usecases.validate_upload import ValidateUploadUseCase
 from infrastructure.repositories.MongoImageRepository import MongoImageRepository
 from infrastructure.repositories.MongoChatRepository import MongoChatRepository
 from infrastructure.storage import StorageService
+from infrastructure.medical_image_validator import MedicalImageValidator
 from adapters.dtos.image_dto import (
     ImageResponse, ImageUploadResponse, ImageListResponse, ImageDeleteResponse, 
     ErrorResponse, ProcessingStatusResponse, TumorPredictionResult
 )
 from adapters.dtos.chat_dto import ChatRequest, ChatResponse, ChatHistoryResponse, ChatMessageDTO
+from adapters.dtos.validation_dto import ValidationJobResponse, ValidationJobStatusResponse
 from usecases.chat_about_image import ChatAboutImageUseCase
 from adapters.gateways.vlm_gateway import VisionLanguageGateway
 
@@ -30,6 +33,9 @@ def get_image_repository():
 
 def get_storage_service():
     return StorageService()
+
+def get_medical_validator():
+    return MedicalImageValidator()
 
 def get_upload_use_case(
     repo: MongoImageRepository = Depends(get_image_repository),
@@ -56,59 +62,135 @@ def get_chat_use_case(
 ):
     return ChatAboutImageUseCase(chat_repo=chat_repo, image_repo=img_repo, vlm=vlm)
 
-@router.post("/upload", response_model=ImageUploadResponse)
-async def upload_image(
+def get_validate_upload_use_case():
+    return ValidateUploadUseCase(get_storage_service())
+
+@router.post("/validate", response_model=dict)
+async def validate_medical_image(
     file: UploadFile = File(...),
-    user_id: str = Query(..., description="ID del usuario que sube la imagen"),
-    custom_name: Optional[str] = Form(None, description="Nombre personalizado para la imagen"),
-    upload_use_case: UploadImageUseCase = Depends(get_upload_use_case)
+    medical_validator: MedicalImageValidator = Depends(get_medical_validator)
 ):
-    """Subir una nueva imagen e iniciar procesamiento en background"""
+    """Validar si una imagen es una tomografía cerebral válida antes de subirla"""
     try:
-        logger.info(f"Subiendo imagen: {file.filename}, user_id: {user_id}, custom_name: {custom_name}")
+        logger.info(f"Validando imagen médica: {file.filename}")
         
         # Leer contenido del archivo
         file_content = await file.read()
         
-        # Para el caso de uso, siempre pasamos el nombre original del archivo
-        # El nombre personalizado se manejará en el caso de uso
-        original_filename = file.filename
-        custom_filename = custom_name if custom_name else original_filename
-        logger.info(f"Nombre original: {original_filename}, Nombre personalizado: {custom_filename}")
+        if not file_content:
+            raise HTTPException(status_code=400, detail="El archivo está vacío")
         
-        # Ejecutar caso de uso
-        image = await upload_use_case.execute(file_content, original_filename, user_id, custom_filename)
+        # Obtener tipo MIME
+        import mimetypes
+        mime_type, _ = mimetypes.guess_type(file.filename)
+        if not mime_type:
+            mime_type = "application/octet-stream"
         
-        # Convertir a DTO de respuesta
-        image_response = ImageResponse(
-            id=str(image.id),
-            filename=image.filename,
-            original_filename=image.original_filename,
-            file_size=image.file_size,
-            mime_type=image.mime_type,
-            width=image.width,
-            height=image.height,
-            user_id=image.user_id,
-            upload_date=image.upload_date,
-            processing_status=image.processing_status,
-            metadata=image.metadata
+        # Validar imagen médica
+        is_valid, validation_info = await medical_validator.validate_brain_ct(file_content, mime_type)
+        
+        return {
+            "is_valid": is_valid,
+            "filename": file.filename,
+            "validation_details": validation_info,
+            "message": "Imagen válida para análisis de tumores cerebrales" if is_valid else "La imagen no es una tomografía cerebral válida"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error en validación de imagen: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error en validación: {str(e)}")
+
+@router.post("/validate-upload", response_model=ValidationJobResponse)
+async def validate_upload(
+    file: UploadFile = File(...),
+    user_id: str = Form(...),
+    custom_filename: Optional[str] = Form(None),
+    validate_upload_use_case: ValidateUploadUseCase = Depends(get_validate_upload_use_case)
+):
+    """Fase 1: Subir imagen a staging y lanzar validación en background"""
+    try:
+        logger.info(f"Iniciando validación de upload para archivo: {file.filename}")
+        
+        # Leer contenido del archivo
+        file_content = await file.read()
+        
+        # Iniciar validación en background
+        job_id = await validate_upload_use_case.execute(
+            file_content=file_content,
+            original_filename=file.filename,
+            user_id=user_id,
+            custom_filename=custom_filename
         )
+        
+        logger.info(f"Job de validación creado: {job_id}")
+        
+        return ValidationJobResponse(
+            job_id=job_id,
+            status="validating",
+            message="Imagen subida a staging. Validación médica en progreso..."
+        )
+        
+    except Exception as e:
+        logger.error(f"Error en validate_upload: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Error en validación: {str(e)}")
+
+@router.get("/validate-jobs/{job_id}", response_model=ValidationJobStatusResponse)
+async def get_validation_job_status(
+    job_id: str,
+    validate_upload_use_case: ValidateUploadUseCase = Depends(get_validate_upload_use_case)
+):
+    """Obtener estado de un job de validación"""
+    try:
+        logger.info(f"Consultando estado de job: {job_id}")
+        
+        job_status = await validate_upload_use_case.get_job_status(job_id)
+        
+        return ValidationJobStatusResponse(
+            job_id=job_id,
+            status=job_status["status"],
+            message=job_status.get("message", ""),
+            image_id=job_status.get("image_id"),
+            error=job_status.get("error")
+        )
+        
+    except Exception as e:
+        logger.error(f"Error obteniendo estado de job {job_id}: {str(e)}")
+        raise HTTPException(status_code=404, detail=f"Job no encontrado: {str(e)}")
+
+@router.post("/upload", response_model=ImageUploadResponse)
+async def upload_image(
+    file: UploadFile = File(...),
+    user_id: str = Form(...),
+    custom_filename: Optional[str] = Form(None),
+    validate_upload_use_case: ValidateUploadUseCase = Depends(get_validate_upload_use_case)
+):
+    """Subir una nueva imagen usando el patrón de 2 fases"""
+    try:
+        logger.info(f"Subiendo imagen: {file.filename}, user_id: {user_id}, custom_name: {custom_filename}")
+        
+        # Leer contenido del archivo
+        file_content = await file.read()
+        
+        # Usar el patrón de 2 fases: subir a staging y validar en background
+        job_id = await validate_upload_use_case.execute(
+            file_content=file_content,
+            original_filename=file.filename,
+            user_id=user_id,
+            custom_filename=custom_filename
+        )
+        
+        logger.info(f"Job de validación creado: {job_id}")
         
         return ImageUploadResponse(
-            message="Imagen subida exitosamente. El análisis de tumores se está procesando en background.",
-            image=image_response,
-            processing_status=image.processing_status
+            success=True,
+            message=f"Imagen subida a validación. Job ID: {job_id}",
+            job_id=job_id,
+            status="validating"
         )
         
-    except ValueError as e:
-        logger.error(f"Error de validación en upload: {str(e)}")
-        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"Error interno en upload: {str(e)}")
-        logger.error(f"Tipo de error: {type(e)}")
-        import traceback
-        logger.error(f"Traceback: {traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=f"Error interno del servidor: {str(e)}")
+        logger.error(f"Error de validación en upload: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Error en validación: {str(e)}")
 
 @router.get("/{image_id}/chat", response_model=ChatHistoryResponse)
 async def get_chat_history(
@@ -236,10 +318,12 @@ async def get_images(
     """Obtener lista de imágenes"""
     try:
         logger.info(f"Obteniendo imágenes para user_id: {user_id}, skip: {skip}, limit: {limit}")
+        
+        # Ejecutar de forma asíncrona
         images = await get_images_use_case.execute(user_id=user_id, skip=skip, limit=limit)
         logger.info(f"Imágenes obtenidas: {len(images)}")
         
-        # Convertir a DTOs de respuesta
+        # Convertir a DTOs de respuesta de forma eficiente
         image_responses = []
         for i, image in enumerate(images):
             try:
@@ -257,11 +341,10 @@ async def get_images(
                     metadata=image.metadata
                 )
                 image_responses.append(image_response)
-                logger.info(f"Imagen {i+1} convertida exitosamente: {image.filename}")
             except Exception as img_error:
                 logger.error(f"Error convirtiendo imagen {i+1}: {str(img_error)}")
-                logger.error(f"Datos de la imagen: {image}")
-                raise
+                # Continuar con las siguientes imágenes en lugar de fallar completamente
+                continue
         
         logger.info(f"Total de imágenes convertidas: {len(image_responses)}")
         return ImageListResponse(
