@@ -1,0 +1,2 @@
+*.keras filter=lfs diff=lfs merge=lfs -text
+modelo_multiclase/** filter=lfs diff=lfs merge=lfs -text
