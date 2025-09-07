@@ -146,60 +146,63 @@ const Predictions: React.FC = () => {
                 <div className="prediction-info">
                   <h4>{image.original_filename}</h4>
                   
-                  {prediction && prediction.prediction ? (
+                  {prediction && prediction.status === 'completed' && prediction.prediction ? (
                     <div className="prediction-results">
                       <div className="prediction-status">
                         <span className={`status-badge ${prediction.prediction.es_tumor ? 'tumor-detected' : 'no-tumor'}`}>
                           {prediction.prediction.es_tumor ? '⚠️ Tumor Detectado' : '✅ Sin Tumor'}
                         </span>
                       </div>
-                      
                       <div className="prediction-details">
                         <div className="prediction-item">
-                          <strong>Tipo:</strong>
+                          <strong>Confianza:</strong>
+                          <span className="prediction-value">{typeof prediction.prediction.confianza === 'number' ? prediction.prediction.confianza.toFixed(3) : 'N/A'}</span>
+                        </div>
+                        <div className="prediction-item">
+                          <strong>Clase predicha:</strong>
                           <span className="prediction-value">{prediction.prediction.clase_predicha}</span>
                         </div>
                         <div className="prediction-item">
-                          <strong>Confianza:</strong>
-                          <span className="prediction-value">{(prediction.prediction.confianza * 100).toFixed(1)}%</span>
+                          <strong>Tiempo de procesamiento:</strong>
+                          <span className="prediction-value">{prediction.processing_completed ? '—' : 'N/A'}</span>
                         </div>
                         <div className="prediction-item">
                           <strong>Procesado:</strong>
                           <span className="prediction-value">{formatDate(prediction.processing_completed || '')}</span>
                         </div>
+                        {prediction.prediction.recomendacion && (
+                          <div className="prediction-item">
+                            <strong>Recomendación:</strong>
+                            <span className="prediction-value">{prediction.prediction.recomendacion}</span>
+                          </div>
+                        )}
                       </div>
-                      
-                       <div className="prediction-recommendation">
-                         <p>{prediction.prediction.recomendacion}</p>
-                       </div>
-                       
-                       <div className="prediction-actions">
-                         <button 
-                           onClick={() => {
-                             console.log('Navegando a:', `/prediction/${image.id}`);
-                             navigate(`/prediction/${image.id}`);
-                           }}
-                           className="view-details-button"
-                           style={{ 
-                             background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                             color: 'white',
-                             border: 'none',
-                             padding: '0.75rem 1.5rem',
-                             borderRadius: '8px',
-                             fontSize: '0.9rem',
-                             fontWeight: '500',
-                             cursor: 'pointer',
-                             width: '100%',
-                             marginTop: '1rem'
-                           }}
-                         >
-                           📊 Ver Detalles Completos
-                         </button>
-                       </div>
+                      <div className="prediction-actions">
+                        <button 
+                          onClick={() => {
+                            navigate(`/prediction/${image.id}`);
+                          }}
+                          className="view-details-button"
+                          style={{ 
+                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                            color: 'white',
+                            border: 'none',
+                            padding: '0.75rem 1.5rem',
+                            borderRadius: '8px',
+                            fontSize: '0.9rem',
+                            fontWeight: '500',
+                            cursor: 'pointer',
+                            width: '100%',
+                            marginTop: '1rem'
+                          }}
+                        >
+                          📊 Ver Detalles Completos
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <div className="no-prediction-data">
-                      <p>No se pudieron cargar los datos de predicción</p>
+                      <p>{'No se pudieron cargar los datos de predicción'}</p>
                     </div>
                   )}
                 </div>

@@ -155,21 +155,14 @@ const PredictionResultsPage: React.FC = () => {
         </div>
 
         {/* Resultados de predicción */}
-        {statusData.prediction && (
+        {statusData && (
           <div className="prediction-section">
             <h2>🧠 Resultados de la Predicción</h2>
-            <PredictionResults prediction={statusData.prediction} />
+            <PredictionResults prediction={statusData} />
           </div>
         )}
 
-        {/* Mensaje de estado */}
-        {statusData.message && (
-          <div className="status-message">
-            <h3>📝 Mensaje del Sistema</h3>
-            <p>{statusData.message}</p>
-          </div>
-        )}
-
+  {/* Mensaje de estado eliminado: 'message' no existe en ProcessingStatusResponse */}
         {/* Acciones */}
         <div className="actions-section">
           <button onClick={() => navigate('/predictions')} className="action-button">
