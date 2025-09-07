@@ -104,17 +104,20 @@ export interface AnnotationListResponse {
   total: number;
 }
 
+
+export interface TumorPredictionResult {
+  es_tumor: boolean;
+  clase_predicha: string;
+  confianza: number;
+  probabilidades: Record<string, number>;
+  recomendacion: string;
+}
+
 export interface ProcessingStatusResponse {
-  image_id: string;
+  image_id?: string;
   status: string;
-  message: string;
-  prediction?: {
-    es_tumor: boolean;
-    clase_predicha: string;
-    confianza: number;
-    probabilidades: Record<string, number>;
-    recomendacion: string;
-  };
+  message?: string;
+  prediction?: TumorPredictionResult;
   processing_started?: string;
   processing_completed?: string;
 }
@@ -219,11 +222,12 @@ class ApiService {
   async uploadImage(file: File, userId: string, customName?: string): Promise<ImageUploadResponse> {
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('user_id', userId);
     if (customName) {
       formData.append('custom_name', customName);
     }
     
-    const url = `${this.imageApiUrl}/api/v1/images/upload?user_id=${userId}`;
+    const url = `${this.imageApiUrl}/api/v1/images/upload`;
     
     try {
       const response = await fetch(url, {

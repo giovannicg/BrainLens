@@ -77,6 +77,7 @@ services:
       - VLM_VALIDATOR_SYSTEM_PROMPT=Eres un validador médico especializado. Tu única función es responder SÍ o NO a preguntas simples sobre imágenes médicas. Responde siempre de forma clara y directa.
       - VLM_FORCE_SPANISH=true
       - VLM_TIMEOUT=120
+      - COLAB_SERVICE_URL=http://colab-service:8004
       - HOST=0.0.0.0
       - PORT=8002
       - DEBUG=true
@@ -88,6 +89,7 @@ services:
       - mongodb
       - redis
       - ollama
+      - colab-service
     networks:
       - brainlens-network
 
@@ -99,7 +101,6 @@ services:
     environment:
       - MONGODB_URL=mongodb://admin:password@mongodb:27017
       - DATABASE_NAME=brainlens
-      - MODEL_PATH=/app/modelo_multiclase_final.keras
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - CELERY_WORKER_CONCURRENCY=2
@@ -162,6 +163,8 @@ services:
       - HOST=0.0.0.0
       - PORT=8004
       - DEBUG=true
+    volumes:
+      - ./modelo_multiclase:/app/modelo_multiclase
     ports:
       - "8004:8004"
     depends_on:
