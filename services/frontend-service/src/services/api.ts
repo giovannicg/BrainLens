@@ -147,6 +147,21 @@ export interface ChatResponseDTO {
   history?: ChatMessageDTO[];
 }
 
+// Validación (jobs de subida)
+export interface ValidationJobResponse {
+  job_id: string;
+  status: string;
+  message: string;
+}
+
+export interface ValidationJobStatusResponse {
+  job_id: string;
+  status: string;
+  message: string;
+  image_id?: string;
+  error?: string;
+}
+
 class ApiService {
   private baseUrl: string;
   private imageApiUrl: string;
@@ -245,6 +260,10 @@ class ApiService {
       console.error('Image upload failed:', error);
       throw error;
     }
+  }
+
+  async getValidationJobStatus(jobId: string): Promise<ValidationJobStatusResponse> {
+    return this.request<ValidationJobStatusResponse>(`/api/v1/images/validate-jobs/${jobId}`, {}, true);
   }
 
   async getProcessingStatus(imageId: string): Promise<ProcessingStatusResponse> {
