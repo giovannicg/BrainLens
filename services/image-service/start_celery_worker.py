@@ -22,11 +22,11 @@ def start_celery_worker():
         print("📋 Configuración:")
         print(f"   - Broker: {os.getenv('CELERY_BROKER_URL', 'redis://localhost:6379/0')}")
         print(f"   - Cola: tumor_analysis")
-        print(f"   - Modelo: {os.getenv('MODEL_PATH', 'modelo_multiclase_final.keras')}")
+        print(f"   - Modelo: {os.getenv('MODEL_PATH', 'modelo_multiclase')}")
         print()
         
         # Verificar que el modelo existe
-        model_path = os.getenv("MODEL_PATH", "modelo_multiclase_final.keras")
+        model_path = os.getenv("MODEL_PATH", "modelo_multiclase")
         if not os.path.exists(model_path):
             print(f"⚠️  Advertencia: Modelo no encontrado en {model_path}")
             print("   El worker funcionará pero las predicciones fallarán")
