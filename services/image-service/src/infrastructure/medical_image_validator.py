@@ -1,3 +1,6 @@
+import logging
+logger = logging.getLogger(__name__)
+logger.info('[MEDICAL_IMAGE_VALIDATOR] Archivo medical_image_validator.py cargado')
 import os
 import logging
 from typing import Tuple, Dict, Any
@@ -6,6 +9,7 @@ from adapters.gateways.vlm_gateway import VisionLanguageGateway
 logger = logging.getLogger(__name__)
 
 class MedicalImageValidator:
+    logger.info('[MEDICAL_IMAGE_VALIDATOR] Instanciando MedicalImageValidator')
     def __init__(self):
         # Usar system prompt específico para validación
         self.validator_system_prompt = os.getenv(
@@ -21,6 +25,7 @@ class MedicalImageValidator:
         logger.info(f"MedicalImageValidator inicializado con system prompt: {self.validator_system_prompt[:50]}...")
         
     async def validate_brain_ct(self, image_bytes: bytes, mime_type: str) -> Tuple[bool, Dict[str, Any]]:
+        logger.info(f'[MEDICAL_IMAGE_VALIDATOR] validate_brain_ct llamada con mime_type={mime_type}, bytes={len(image_bytes)}')
         """
         Valida si la imagen es una tomografía cerebral (CT) válida.
         
@@ -78,13 +83,14 @@ class MedicalImageValidator:
             
         except Exception as e:
             logger.error(f"Error en validación de imagen médica: {str(e)}")
-            # En caso de error, NO permitir la imagen - ser más estricto
+            # En caso de error técnico, marcar para revisión manual
             return False, {
                 "es_tomografia_cerebral": False,
                 "muestra_estructuras_cerebrales": False,
                 "calidad_suficiente": False,
-                "descripcion": "Error en validación automática - no se pudo verificar si es una tomografía cerebral válida",
-                "error": str(e)
+                "descripcion": "Error técnico en validación automática - se requiere revisión manual.",
+                "error": str(e),
+                "validation_error": True
             }
     
     def _parse_text_response(self, response: str) -> Dict[str, Any]:

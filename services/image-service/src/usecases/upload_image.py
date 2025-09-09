@@ -22,59 +22,65 @@ class UploadImageUseCase:
     async def execute(self, file_content: bytes, original_filename: str, user_id: str, custom_filename: Optional[str] = None) -> ImageEntity:
         """Subir una nueva imagen con validación médica obligatoria"""
         try:
-            logger.info(f"Iniciando ejecución de upload_image para archivo: {original_filename}")
-            
+            logger.info(f"[UPLOAD_UC] Iniciando ejecución de upload_image para archivo: {original_filename}")
+
             # Validar archivo
             if not file_content:
+                logger.error("[UPLOAD_UC] El archivo está vacío")
                 raise ValueError("El archivo está vacío")
-            
-            logger.info("Archivo validado - no está vacío")
-            
+            logger.info(f"[UPLOAD_UC] Archivo validado - no está vacío, tamaño: {len(file_content)} bytes")
+
             # Validar tipo de archivo
-            logger.info(f"Validando tipo de archivo: {original_filename}")
+            logger.info(f"[UPLOAD_UC] Validando tipo de archivo: {original_filename}")
             if not self.storage_service.is_valid_image_type(original_filename):
+                logger.error(f"[UPLOAD_UC] Tipo de archivo no válido: {original_filename}")
                 raise ValueError("Tipo de archivo no válido")
-            
-            logger.info("Tipo de archivo validado")
-            
+            logger.info(f"[UPLOAD_UC] Tipo de archivo validado: {original_filename}")
+
             # Validar tamaño de archivo
-            logger.info(f"Validando tamaño de archivo: {len(file_content)} bytes")
+            logger.info(f"[UPLOAD_UC] Validando tamaño de archivo: {len(file_content)} bytes")
             if len(file_content) > self.storage_service.get_max_file_size():
                 raise ValueError("El archivo es demasiado grande")
             
             logger.info("Tamaño de archivo validado")
             
-            # VALIDACIÓN MÉDICA OBLIGATORIA ANTES DE GUARDAR
-            logger.info("Iniciando validación médica obligatoria...")
-            
-            # Determinar MIME type
-            import mimetypes
-            mime_type, _ = mimetypes.guess_type(original_filename)
-            if not mime_type:
-                mime_type = "application/octet-stream"
-            
-            # Ejecutar validación médica con timeout
-            try:
-                is_valid_ct, validation_info = await asyncio.wait_for(
-                    self.medical_validator.validate_brain_ct(file_content, mime_type),
-                    timeout=120.0  # Timeout de 120 segundos
-                )
-                
-                if not is_valid_ct:
-                    error_msg = f"La imagen no es una tomografía cerebral válida. {validation_info.get('descripcion', '')}"
-                    logger.warning(f"Validación médica fallida: {error_msg}")
-                    raise ValueError(error_msg)
-                
-                logger.info("Validación médica exitosa - es una tomografía cerebral válida")
-                
-            except asyncio.TimeoutError:
-                error_msg = "Validación médica tardó demasiado tiempo. No se pudo verificar si la imagen es una tomografía cerebral válida."
-                logger.error(f"Timeout en validación médica: {error_msg}")
-                raise ValueError(error_msg)
-            except Exception as validation_error:
-                error_msg = f"Error en validación médica: {str(validation_error)}"
-                logger.error(f"Error en validación médica: {error_msg}")
-                raise ValueError(error_msg)
+                # VALIDACIÓN MÉDICA OBLIGATORIA ANTES DE GUARDAR
+                # logger.info("Iniciando validación médica obligatoria...")
+                # 
+                # # Determinar MIME type
+                # import mimetypes
+                # mime_type, _ = mimetypes.guess_type(original_filename)
+                # if not mime_type:
+                #     mime_type = "application/octet-stream"
+                # 
+                # # Ejecutar validación médica con timeout
+                # try:
+                #     is_valid_ct, validation_info = await asyncio.wait_for(
+                #         self.medical_validator.validate_brain_ct(file_content, mime_type),
+                #         timeout=120.0  # Timeout de 120 segundos
+                #     )
+                #     
+                #     if not is_valid_ct:
+                #         error_msg = f"La imagen no es una tomografía cerebral válida. {validation_info.get('descripcion', '')}"
+                #         logger.warning(f"Validación médica fallida: {error_msg}")
+                #         raise ValueError(error_msg)
+                #     
+                #     logger.info("Validación médica exitosa - es una tomografía cerebral válida")
+                #     
+                # except asyncio.TimeoutError:
+                #     error_msg = "Validación médica tardó demasiado tiempo. No se pudo verificar si la imagen es una tomografía cerebral válida."
+                #     logger.error(f"Timeout en validación médica: {error_msg}")
+                #     raise ValueError(error_msg)
+                # except Exception as validation_error:
+                #     error_msg = f"Error en validación médica: {str(validation_error)}"
+                #     logger.error(f"Error en validación médica: {error_msg}")
+                #     raise ValueError(error_msg)
+                # --- FIN DE BLOQUE VALIDACIÓN MÉDICA ---
+                # Validación médica deshabilitada temporalmente
+            validation_info = {
+                "descripcion": "Validación médica deshabilitada. Imagen guardada sin comprobación de si es tomografía cerebral.",
+                "is_valid_ct": None
+            }
             
             # Usar nombre personalizado si se proporciona
             final_filename = custom_filename if custom_filename else original_filename
