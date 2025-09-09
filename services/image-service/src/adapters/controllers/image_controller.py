@@ -164,33 +164,43 @@ async def upload_image(
     custom_filename: Optional[str] = Form(None),
     validate_upload_use_case: ValidateUploadUseCase = Depends(get_validate_upload_use_case)
 ):
-    """Subir una nueva imagen usando el patrón de 2 fases"""
+    """Subir una nueva imagen y lanzar procesamiento en background"""
     try:
-        logger.info(f"Subiendo imagen: {file.filename}, user_id: {user_id}, custom_name: {custom_filename}")
-        
-        # Leer contenido del archivo
+        logger.info(f"[UPLOAD] Recibida petición de subida: filename={file.filename}, user_id={user_id}, custom_name={custom_filename}")
         file_content = await file.read()
-        
-        # Usar el patrón de 2 fases: subir a staging y validar en background
-        job_id = await validate_upload_use_case.execute(
+        logger.info(f"[UPLOAD] Bytes leídos del archivo: {len(file_content)}")
+
+        # Usar el caso de uso para guardar la imagen (sin procesar)
+        upload_use_case = UploadImageUseCase(get_image_repository(), get_storage_service())
+        image_entity = await upload_use_case.execute(
             file_content=file_content,
             original_filename=file.filename,
             user_id=user_id,
             custom_filename=custom_filename
         )
-        
-        logger.info(f"Job de validación creado: {job_id}")
-        
+        logger.info(f"[UPLOAD] Imagen guardada en base de datos con ID: {image_entity.id}")
+
+        # Lanzar tarea Celery para validación y predicción en background
+        import mimetypes
+        mime_type, _ = mimetypes.guess_type(file.filename)
+        if not mime_type:
+            mime_type = "application/octet-stream"
+        from tasks.tumor_analysis_tasks import validate_medical_image_task
+        validate_medical_image_task.delay(str(image_entity.id), file_content, mime_type)
+        logger.info(f"[UPLOAD] Tarea Celery lanzada para imagen {image_entity.id}")
+
         return ImageUploadResponse(
             success=True,
-            message=f"Imagen subida a validación. Job ID: {job_id}",
-            job_id=job_id,
-            status="validating"
+            message="Imagen subida correctamente. Procesamiento en background iniciado.",
+            job_id=str(image_entity.id),
+            status="pending",
+            processing_status="pending",
+            prediction=None
         )
-        
+
     except Exception as e:
-        logger.error(f"Error de validación en upload: {str(e)}")
-        raise HTTPException(status_code=400, detail=f"Error en validación: {str(e)}")
+        logger.error(f"[UPLOAD] Error en procesamiento en background: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Error en procesamiento: {str(e)}")
 
 @router.get("/{image_id}/chat", response_model=ChatHistoryResponse)
 async def get_chat_history(

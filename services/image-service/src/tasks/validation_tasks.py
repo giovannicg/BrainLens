@@ -1,3 +1,6 @@
+import logging
+logger = logging.getLogger(__name__)
+logger.info('[VALIDATION_TASK] Archivo validation_tasks.py cargado')
 import os
 import json
 import asyncio
@@ -129,18 +132,27 @@ def validate_upload_task(self, job_id: str, staging_path: str, original_filename
             
             # Guardar en base de datos
             saved_image = loop.run_until_complete(repo.save(image))
-            
+
+            # Lanzar tarea de análisis de tumor en background
+            try:
+                from tasks.tumor_analysis_tasks import analyze_tumor_task
+                logger.info(f"Lanzando tarea de análisis de tumor para imagen ID: {saved_image.id} en la cola 'tumor_analysis'")
+                analyze_tumor_task.apply_async(args=[str(saved_image.id)], queue='tumor_analysis')
+                logger.info(f"Tarea de análisis de tumor lanzada correctamente para imagen ID: {saved_image.id}")
+            except Exception as e:
+                logger.error(f"No se pudo lanzar la tarea de análisis de tumor: {str(e)}")
+
             # Limpiar archivo de staging
             os.remove(staging_path)
-            
+
             # Actualizar job como completado
             loop.run_until_complete(_update_job_status(
-                job_id, 
-                "completed", 
+                job_id,
+                "completed",
                 "Validación exitosa. Imagen guardada correctamente.",
                 str(saved_image.id)
             ))
-            
+
             logger.info(f"Job {job_id} completado exitosamente. Imagen ID: {saved_image.id}")
             return {"status": "success", "image_id": str(saved_image.id)}
             

@@ -1,3 +1,6 @@
+import logging
+logger = logging.getLogger(__name__)
+logger.info('[CELERY_CONFIG] Archivo celery_config.py cargado')
 import os
 from dotenv import load_dotenv
 

@@ -26,6 +26,7 @@ const ImageUpload: React.FC = () => {
   const [uploadProgress, setUploadProgress] = useState<UploadProgress>({});
   const [uploadResults, setUploadResults] = useState<ImageUploadResponse[]>([]);
   const [error, setError] = useState<string>('');
+  const errorTimeoutRef = useRef<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -125,13 +126,23 @@ const ImageUpload: React.FC = () => {
     if (uploadedFiles.length === 0) return;
     if (!user) {
       setError('Debes estar autenticado para subir imágenes');
+      // Limpiar error automáticamente después de 6 segundos
+      if (errorTimeoutRef.current) {
+        window.clearTimeout(errorTimeoutRef.current);
+      }
+      errorTimeoutRef.current = window.setTimeout(() => {
+        setError('');
+      }, 6000);
       return;
     }
 
     setUploading(true);
     setError('');
+    if (errorTimeoutRef.current) {
+      window.clearTimeout(errorTimeoutRef.current);
+    }
     const results: ImageUploadResponse[] = [];
-    
+
     try {
       for (const fileWithName of uploadedFiles) {
         // Inicializar progreso para este archivo
@@ -172,12 +183,19 @@ const ImageUpload: React.FC = () => {
           }));
           
           setError(`Error al subir ${fileWithName.file.name}: ${errorMessage}`);
+          // Limpiar error automáticamente después de 6 segundos
+          if (errorTimeoutRef.current) {
+            window.clearTimeout(errorTimeoutRef.current);
+          }
+          errorTimeoutRef.current = window.setTimeout(() => {
+            setError('');
+          }, 6000);
         }
       }
       
       setUploadResults((prev: ImageUploadResponse[]) => [...prev, ...results]);
       setUploadedFiles([]);
-      
+      setUploadProgress({});
       if (results.length > 0) {
         // Mostrar notificación más amigable
         const successCount = results.length;
@@ -197,8 +215,17 @@ const ImageUpload: React.FC = () => {
     } catch (error) {
       console.error('Upload failed:', error);
       setError('Error al subir las imágenes');
+      // Limpiar error automáticamente después de 6 segundos
+      if (errorTimeoutRef.current) {
+        window.clearTimeout(errorTimeoutRef.current);
+      }
+      errorTimeoutRef.current = window.setTimeout(() => {
+        setError('');
+      }, 6000);
     } finally {
       setUploading(false);
+      setUploadedFiles([]);
+      setUploadProgress({});
     }
   };
 
@@ -211,6 +238,7 @@ const ImageUpload: React.FC = () => {
     setUploadProgress({});
     localStorage.removeItem('uploadResults');
     localStorage.removeItem('uploadProgress');
+    setError('');
   };
 
   return (
@@ -390,4 +418,4 @@ const ImageUpload: React.FC = () => {
   );
 };
 
-export default ImageUpload; 
+export default ImageUpload;
