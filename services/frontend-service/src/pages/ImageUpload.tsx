@@ -175,8 +175,10 @@ const ImageUpload: React.FC = () => {
         }
       }
       
-      setUploadResults((prev: ImageUploadResponse[]) => [...prev, ...results]);
-      setUploadedFiles([]);
+      if (results.length > 0) {
+        setUploadResults((prev: ImageUploadResponse[]) => [...prev, ...results]);
+        setUploadedFiles([]);
+      }
       
       if (results.length > 0) {
         // Mostrar notificación más amigable
@@ -293,7 +295,7 @@ const ImageUpload: React.FC = () => {
               onClick={handleUpload}
               disabled={uploading}
               className="upload-button"
-            >
+            > 
               {uploading ? 'Subiendo...' : 'Subir Imágenes'}
             </button>
           </div>

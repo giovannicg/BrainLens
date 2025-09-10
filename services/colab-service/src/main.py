@@ -8,7 +8,7 @@ from datetime import datetime
 from PIL import Image
 import io
 import numpy as np
-from predictor import load_models_from_dir, preprocess_image, predict_with_models
+from src.predictor import load_models_from_dir, preprocess_image, predict_with_models
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
