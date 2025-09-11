@@ -55,8 +55,9 @@ class ValidateUploadUseCase:
             # Guardar metadata del job en Redis (simulado con archivo temporal)
             await self._save_job_metadata(job_id, job_metadata)
             
-            # Lanzar validación en background
-            validate_upload_task.delay(job_id, staging_path, original_filename, user_id, custom_filename)
+            # Lanzar validación en background usando Kafka
+            from tasks.validation_tasks import send_validate_upload_task
+            send_validate_upload_task(job_id, staging_path, original_filename, user_id, custom_filename)
             
             logger.info(f"Job de validación lanzado: {job_id}")
             

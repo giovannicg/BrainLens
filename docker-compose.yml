@@ -15,18 +15,6 @@ services:
     networks:
       - brainlens-network
 
-  # Redis para Celery
-  redis:
-    image: redis:7-alpine
-    container_name: brainlens-redis
-    restart: unless-stopped
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    networks:
-      - brainlens-network
-
   # Ollama (LLaMA en Docker)
   ollama:
     image: ollama/ollama:0.11.8
@@ -67,8 +55,7 @@ services:
       - DATABASE_NAME=brainlens
       - STORAGE_TYPE=local
       - LOCAL_STORAGE_PATH=/app/storage
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       # VLM: usar modelo disponible
       - VLM_PROVIDER=ollama
       - VLM_MODEL=llava:7b
@@ -87,52 +74,11 @@ services:
       - image_storage:/app/storage
     depends_on:
       - mongodb
-      - redis
+      - kafka
       - ollama
       - colab-service
     networks:
       - brainlens-network
-
-  # Celery Worker para Image Service
-  image-service-worker:
-    build: ./services/image-service
-    container_name: brainlens-image-worker
-    restart: unless-stopped
-    environment:
-      - MONGODB_URL=mongodb://admin:password@mongodb:27017
-      - DATABASE_NAME=brainlens
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - CELERY_WORKER_CONCURRENCY=2
-      - CELERY_TASK_TIME_LIMIT=300
-    volumes:
-      - image_storage:/app/storage
-    depends_on:
-      - mongodb
-      - redis
-    networks:
-      - brainlens-network
-    command: ["python", "/app/start_celery_worker.py"]
-
-  # Flower para monitoreo de Celery
-  flower:
-    build: ./services/image-service
-    container_name: brainlens-flower
-    restart: unless-stopped
-    environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
-    ports:
-      - "5555:5555"
-    volumes:
-      - ./services/image-service:/app
-    depends_on:
-      - redis
-      - image-service-worker
-    networks:
-      - brainlens-network
-    command: ["celery", "flower", "--port=5555", "--broker=redis://redis:6379/0"]
-    working_dir: /app
 
   # Annotation Service
   annotation-service:
@@ -183,6 +129,109 @@ services:
       - auth-service
     networks:
       - brainlens-network
+
+  # Zookeeper para Kafka
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: brainlens-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    networks:
+      - brainlens-network
+
+  # Kafka
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: brainlens-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+    networks:
+      - brainlens-network
+
+  # Workers Kafka
+  worker-validate-upload:
+    build: ./services/image-service
+    container_name: brainlens-worker-validate-upload
+    command: python -m tasks.worker_validate_upload
+    depends_on:
+      - kafka
+      - mongodb
+      - ollama
+      - colab-service
+    environment:
+      - MONGODB_URL=mongodb://admin:password@mongodb:27017/brainlens?authSource=admin
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - VLM_PROVIDER=ollama
+      - VLM_MODEL=llava:7b
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - VLM_SYSTEM_PROMPT=Eres un validador médico especializado. Tu única función es determinar si una imagen es una tomografía computarizada (CT) del cerebro. Responde ÚNICAMENTE con "SÍ" si es una CT cerebral válida o "NO" si no lo es, seguido de una breve explicación técnica.
+      - VLM_VALIDATOR_SYSTEM_PROMPT=Analiza esta imagen médica y determina si es una tomografía computarizada del cerebro. Considera 1) Estructura anatómica cerebral visible, 2) Características típicas de CT (escala de grises Hounsfield), 3) Orientación axial/coronal/sagital típica. Responde solo SÍ o NO.
+      - VLM_FORCE_SPANISH=true
+      - VLM_TIMEOUT=120
+      - COLAB_SERVICE_URL=http://colab-service:8004
+      - DEBUG=true
+    volumes:
+      - image_storage:/app/storage
+    networks:
+      - brainlens-network
+    restart: unless-stopped
+
+  worker-tumor-analysis:
+    build: ./services/image-service
+    container_name: brainlens-worker-tumor-analysis
+    command: python -m tasks.worker_tumor_analysis
+    depends_on:
+      - kafka
+      - mongodb
+      - colab-service
+    environment:
+      - MONGODB_URL=mongodb://admin:password@mongodb:27017/brainlens?authSource=admin
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - COLAB_SERVICE_URL=http://colab-service:8004
+      - DEBUG=true
+    volumes:
+      - image_storage:/app/storage
+    networks:
+      - brainlens-network
+    restart: unless-stopped
+
+  worker-image-chat:
+    build: ./services/image-service
+    container_name: brainlens-worker-image-chat
+    command: python -m tasks.worker_image_chat
+    depends_on:
+      - kafka
+      - mongodb
+      - ollama
+    environment:
+      - MONGODB_URL=mongodb://admin:password@mongodb:27017/brainlens?authSource=admin
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - VLM_PROVIDER=ollama
+      - VLM_MODEL=llava:7b
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - VLM_SYSTEM_PROMPT=Eres un asistente médico especializado en análisis de imágenes cerebrales. Ayuda a interpretar tomografías y resonancias del cerebro de manera clara y educativa.
+      - VLM_FORCE_SPANISH=true
+      - VLM_TIMEOUT=120
+      - DEBUG=true
+    volumes:
+      - image_storage:/app/storage
+    networks:
+      - brainlens-network
+    restart: unless-stopped
 
 volumes:
   mongodb_data:
