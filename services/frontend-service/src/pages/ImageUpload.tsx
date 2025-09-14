@@ -56,6 +56,7 @@ const ImageUpload: React.FC = () => {
     
     if (savedResults) {
       try {
+        console.log('Resultados guardados encontrados:', savedResults);
         setUploadResults(JSON.parse(savedResults));
       } catch (e) {
         console.error('Error al cargar resultados guardados:', e);
@@ -65,10 +66,17 @@ const ImageUpload: React.FC = () => {
 
   // Guardar estado en localStorage cuando cambie
   useEffect(() => {
+    console.log('Guardando progreso en localStorage:', uploadProgress);
     localStorage.setItem('uploadProgress', JSON.stringify(uploadProgress));
   }, [uploadProgress]);
 
   useEffect(() => {
+    console.log('Guardando archivos en localStorage:', uploadedFiles);
+    localStorage.setItem('uploadedFiles', JSON.stringify(uploadedFiles));
+  }, [uploadedFiles]);
+
+  useEffect(() => {
+    console.log('Guardando resultados en localStorage:', uploadResults);
     localStorage.setItem('uploadResults', JSON.stringify(uploadResults));
   }, [uploadResults]);
 
@@ -131,7 +139,7 @@ const ImageUpload: React.FC = () => {
     setUploading(true);
     setError('');
     const results: ImageUploadResponse[] = [];
-    
+    console.log('Iniciando subida de archivos:', uploadedFiles);
     try {
       for (const fileWithName of uploadedFiles) {
         // Inicializar progreso para este archivo
@@ -144,9 +152,11 @@ const ImageUpload: React.FC = () => {
         }));
 
         try {
+          console.log('Subiendo archivo:', fileWithName.file);
           const result = await apiService.uploadImage(fileWithName.file, user.id, fileWithName.customName);
           results.push(result);
-          
+          console.log('Archivo subido con éxito:', result);
+
           // Actualizar progreso como completado
           setUploadProgress((prev: UploadProgress) => ({
             ...prev,
@@ -176,6 +186,7 @@ const ImageUpload: React.FC = () => {
       }
       
       if (results.length > 0) {
+        console.log('Resultados de la subida:', results);
         setUploadResults((prev: ImageUploadResponse[]) => [...prev, ...results]);
         setUploadedFiles([]);
       }
@@ -209,6 +220,7 @@ const ImageUpload: React.FC = () => {
   };
 
   const clearResults = () => {
+    console.log('Limpiando resultados de la subida');
     setUploadResults([]);
     setUploadProgress({});
     localStorage.removeItem('uploadResults');
@@ -345,18 +357,21 @@ const ImageUpload: React.FC = () => {
               {uploadResults.map((result, index) => (
                 <div key={index} className="result-item">
                   <div className="result-header">
-                    <span className="result-success">✅ {result.image.original_filename}</span>
+                    <span className="result-success">✅ {result.image?.original_filename || "" || 'Archivo subido'}</span>
                     <span className="result-size">
-                      {(result.image.file_size / 1024 / 1024).toFixed(2)} MB
+                      {result.image?.file_size
+                        ? (result.image.file_size / 1024 / 1024).toFixed(2) + ' MB'
+                        : 'Tamaño desconocido'
+                      } MB
                     </span>
                   </div>
                   <div className="result-status">
                     <span className="status-label">Estado:</span>
                     <span className={`status-${result.processing_status}`}>
-                      {result.processing_status === 'pending' && '⏳ En cola para procesamiento'}
-                      {result.processing_status === 'processing' && '🔄 Procesando...'}
-                      {result.processing_status === 'completed' && '✅ Procesamiento completado'}
-                      {result.processing_status === 'failed' && '❌ Error en procesamiento'}
+                      {(result.processing_status || "") === 'validating' && '⏳ Validando imagen...'}
+                      {(result.processing_status || "") === 'processing' && '🔄 Procesando...'}
+                      {(result.processing_status || "") === 'completed' && '✅ Procesamiento completado'}
+                      {(result.processing_status || "") === 'failed' && '❌ Error en procesamiento'}
                     </span>
                   </div>
                   <div className="result-message">

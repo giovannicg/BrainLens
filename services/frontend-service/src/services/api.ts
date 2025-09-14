@@ -238,6 +238,7 @@ class ApiService {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('user_id', userId);
+    console.log('formData', formData);
     if (customName) {
       formData.append('custom_name', customName);
     }

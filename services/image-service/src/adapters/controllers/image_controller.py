@@ -185,7 +185,8 @@ async def upload_image(
             success=True,
             message=f"Imagen subida a validación. Job ID: {job_id}",
             job_id=job_id,
-            status="validating"
+            status="validating",
+            image=None
         )
         
     except Exception as e:
