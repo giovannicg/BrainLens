@@ -22,6 +22,8 @@ class ImageUploadResponse(BaseModel):
     # Compatibilidad con respuestas previas
     success: Optional[bool] = None
     status: Optional[str] = None
+    error_code: Optional[str] = Field(None, description="Código de error específico si fallo")
+    error_detail: Optional[str] = Field(None, description="Detalle del error si fallo")
 
 class ImageListResponse(BaseModel):
     images: List[ImageResponse]

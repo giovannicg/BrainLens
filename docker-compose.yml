@@ -15,17 +15,7 @@ services:
     networks:
       - brainlens-network
 
-  # Redis para Celery
-  redis:
-    image: redis:7-alpine
-    container_name: brainlens-redis
-    restart: unless-stopped
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    networks:
-      - brainlens-network
+  
 
   # Ollama (LLaMA en Docker)
   ollama:
@@ -36,6 +26,9 @@ services:
       - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_CONTEXT_LENGTH=2048
+      - OLLAMA_NUM_PARALLEL=1
     networks:
       - brainlens-network
 
@@ -67,16 +60,19 @@ services:
       - DATABASE_NAME=brainlens
       - STORAGE_TYPE=local
       - LOCAL_STORAGE_PATH=/app/storage
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
       # VLM: usar modelo disponible
-      - VLM_PROVIDER=ollama
-      - VLM_MODEL=llava:7b
+      - VLM_PROVIDER=bedrock
+      - BEDROCK_MODEL_ID=amazon.nova-lite-v1:0
+      - AWS_REGION=eu-north-1
+      - AWS_DEFAULT_REGION=eu-north-1
+      # Credenciales AWS (tomadas del entorno host)
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       - OLLAMA_BASE_URL=http://ollama:11434
       - VLM_SYSTEM_PROMPT=Eres un asistente médico especializado en análisis de imágenes radiológicas. Tu función es analizar imágenes médicas y proporcionar observaciones detalladas sobre lo que ves en la imagen, incluyendo posibles hallazgos, anomalías o características relevantes. Responde SIEMPRE en español de forma clara y profesional. Puedes describir lo que observas en la imagen y proporcionar información educativa sobre los hallazgos.
       - VLM_VALIDATOR_SYSTEM_PROMPT=Eres un validador médico especializado. Tu única función es responder SÍ o NO a preguntas simples sobre imágenes médicas. Responde siempre de forma clara y directa.
       - VLM_FORCE_SPANISH=true
-      - VLM_TIMEOUT=120
+      - VLM_TIMEOUT=300
       - COLAB_SERVICE_URL=http://colab-service:8004
       - HOST=0.0.0.0
       - PORT=8002
@@ -87,52 +83,12 @@ services:
       - image_storage:/app/storage
     depends_on:
       - mongodb
-      - redis
       - ollama
       - colab-service
     networks:
       - brainlens-network
-
-  # Celery Worker para Image Service
-  image-service-worker:
-    build: ./services/image-service
-    container_name: brainlens-image-worker
-    restart: unless-stopped
-    environment:
-      - MONGODB_URL=mongodb://admin:password@mongodb:27017
-      - DATABASE_NAME=brainlens
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - CELERY_WORKER_CONCURRENCY=2
-      - CELERY_TASK_TIME_LIMIT=300
-    volumes:
-      - image_storage:/app/storage
-    depends_on:
-      - mongodb
-      - redis
-    networks:
-      - brainlens-network
-    command: ["python", "/app/start_celery_worker.py"]
-
-  # Flower para monitoreo de Celery
-  flower:
-    build: ./services/image-service
-    container_name: brainlens-flower
-    restart: unless-stopped
-    environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
-    ports:
-      - "5555:5555"
-    volumes:
-      - ./services/image-service:/app
-    depends_on:
-      - redis
-      - image-service-worker
-    networks:
-      - brainlens-network
-    command: ["celery", "flower", "--port=5555", "--broker=redis://redis:6379/0"]
-    working_dir: /app
+    env_file:
+      - .env
 
   # Annotation Service
   annotation-service:
@@ -189,8 +145,7 @@ volumes:
     driver: local
   image_storage:
     driver: local
-  redis_data:
-    driver: local
+  
   ollama_data:
     driver: local
 

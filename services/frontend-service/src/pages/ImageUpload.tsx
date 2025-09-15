@@ -4,6 +4,9 @@ import { apiService, ImageUploadResponse } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import './ImageUpload.css';
 
+/**
+ * Interfaces que definen la estructura de datos para los archivos y el progreso de subida
+ */
 interface FileWithCustomName {
   file: File;
   customName: string;
@@ -18,6 +21,8 @@ interface UploadProgress {
     error?: string;
   };
 }
+const isValidUploadResponse = (x: any): x is ImageUploadResponse =>
+  !!x && !!x.image && typeof x.image.id === 'string';
 
 const ImageUpload: React.FC = () => {
   const [dragActive, setDragActive] = useState(false);
@@ -32,7 +37,11 @@ const ImageUpload: React.FC = () => {
   const navigate = useNavigate();
 
   // Persistir estado en localStorage
+  /**
+ * Efectos que manejan la persistencia del estado en localStorage
+ */
   useEffect(() => {
+    // Carga el estado guardado al montar el componente
     const savedFiles = localStorage.getItem('uploadedFiles');
     const savedProgress = localStorage.getItem('uploadProgress');
     const savedResults = localStorage.getItem('uploadResults');
@@ -40,7 +49,6 @@ const ImageUpload: React.FC = () => {
     if (savedFiles) {
       try {
         const parsedFiles = JSON.parse(savedFiles);
-        // No podemos restaurar los objetos File directamente, pero podemos mostrar los nombres
         console.log('Archivos guardados encontrados:', parsedFiles);
       } catch (e) {
         console.error('Error al cargar archivos guardados:', e);
@@ -57,7 +65,10 @@ const ImageUpload: React.FC = () => {
     
     if (savedResults) {
       try {
-        setUploadResults(JSON.parse(savedResults));
+        const parsed = JSON.parse(savedResults);
+        // Sanear: mantener solo respuestas válidas
+        const filtered = Array.isArray(parsed) ? parsed.filter(isValidUploadResponse) : [];
+        setUploadResults(filtered);
       } catch (e) {
         console.error('Error al cargar resultados guardados:', e);
       }
@@ -72,7 +83,9 @@ const ImageUpload: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('uploadResults', JSON.stringify(uploadResults));
   }, [uploadResults]);
-
+/**
+ * Manejadores de eventos para drag & drop
+ */
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -99,7 +112,9 @@ const ImageUpload: React.FC = () => {
       handleFiles(e.target.files);
     }
   };
-
+/**
+ * Funciones de utilidad para manejar archivos
+ */
   const handleFiles = (files: FileList) => {
     const newFiles = Array.from(files).filter(file => 
       file.type.startsWith('image/')
@@ -121,7 +136,9 @@ const ImageUpload: React.FC = () => {
       i === index ? { ...item, customName } : item
     ));
   };
-
+/*
+ * Función principal de subida
+ */
   const handleUpload = async () => {
     if (uploadedFiles.length === 0) return;
     if (!user) {
@@ -155,19 +172,15 @@ const ImageUpload: React.FC = () => {
         }));
 
         try {
-          const result = await apiService.uploadImage(fileWithName.file, user.id, fileWithName.customName);
-          results.push(result);
-          
-          // Actualizar progreso como completado
-          setUploadProgress((prev: UploadProgress) => ({
-            ...prev,
-            [fileWithName.id]: {
-              status: 'completed',
-              progress: 100,
-              result
+          // Navegar a página de carga y dejar que allí se ejecute la subida y redirección
+          navigate('/loading/upload', {
+            state: {
+              file: fileWithName.file,
+              userId: user.id,
+              customName: fileWithName.customName,
             }
-          }));
-          
+          });
+          return; // salir tras navegar para un mejor UX
         } catch (error) {
           console.error('Error uploading file:', fileWithName.file.name, error);
           const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
@@ -182,27 +195,33 @@ const ImageUpload: React.FC = () => {
             }
           }));
           
+          console.log('Setting error message:', `Error al subir ${fileWithName.file.name}: ${errorMessage}`);
           setError(`Error al subir ${fileWithName.file.name}: ${errorMessage}`);
-          // Limpiar error automáticamente después de 6 segundos
+          
+          // Limpiar error automáticamente después de 10 segundos (aumentar tiempo)
           if (errorTimeoutRef.current) {
             window.clearTimeout(errorTimeoutRef.current);
           }
           errorTimeoutRef.current = window.setTimeout(() => {
+            console.log('Clearing error message after timeout');
             setError('');
-          }, 6000);
+          }, 10000); // Aumentar a 10 segundos
         }
       }
       
       setUploadResults((prev: ImageUploadResponse[]) => [...prev, ...results]);
-      setUploadedFiles([]);
-      setUploadProgress({});
+      
+      // Solo limpiar archivos y progreso si hay resultados exitosos
+      if (results.length > 0) {
+        setUploadedFiles([]);
+        setUploadProgress({});
+      }
       if (results.length > 0) {
         // Mostrar notificación más amigable
         const successCount = results.length;
         const totalCount = uploadedFiles.length;
-        const message = `${successCount} de ${totalCount} imagen(es) subida(s) exitosamente`;
+        const message = `${successCount} de ${totalCount} imagen(es) con validación completada`;
         
-        // Crear notificación visual en lugar de alert
         const notification = document.createElement('div');
         notification.className = 'upload-notification success';
         notification.textContent = message;
@@ -359,7 +378,7 @@ const ImageUpload: React.FC = () => {
           </div>
         )}
 
-        {uploadResults.length > 0 && (
+       {uploadResults.length > 0 && (
           <div className="upload-results">
             <div className="results-header">
               <h3>Resultados de la subida</h3>
@@ -368,33 +387,55 @@ const ImageUpload: React.FC = () => {
               </button>
             </div>
             <div className="results-list">
-              {uploadResults.map((result, index) => (
-                <div key={index} className="result-item">
-                  <div className="result-header">
-                    <span className="result-success">✅ {result.image.original_filename}</span>
-                    <span className="result-size">
-                      {(result.image.file_size / 1024 / 1024).toFixed(2)} MB
-                    </span>
-                  </div>
-                  <div className="result-status">
-                    <span className="status-label">Estado:</span>
-                    <span className={`status-${result.processing_status}`}>
-                      {result.processing_status === 'pending' && '⏳ En cola para procesamiento'}
-                      {result.processing_status === 'processing' && '🔄 Procesando...'}
-                      {result.processing_status === 'completed' && '✅ Procesamiento completado'}
-                      {result.processing_status === 'failed' && '❌ Error en procesamiento'}
-                    </span>
-                  </div>
-                  <div className="result-message">
-                    {result.message}
-                  </div>
-                  <div style={{ marginTop: 8 }}>
-                    <button onClick={() => navigate(`/chat/${result.image.id}`)} className="action-button">
-                      💬 Ir al chat de la imagen
-                    </button>
-                  </div>
-                </div>
-              ))}
+              {uploadResults
+                .filter((r): r is ImageUploadResponse => {
+                  if (!r) return false;
+                  const img = (r as any).image;
+                  return img && typeof img === 'object' && img !== null;
+                })
+                .map((result, index) => {
+                  const img = (result as any).image;
+                  if (!img || typeof img !== 'object') {
+                    return null; // Skip invalid entries
+                  }
+                  const fileName = (typeof img.original_filename === 'string' && img.original_filename.trim()) ? img.original_filename : '(sin nombre)';
+                  const sizeMB = typeof img.file_size === 'number' ? (img.file_size / 1024 / 1024).toFixed(2) : '0.00';
+                  const processing = (result as any).processing_status || img.processing_status || 'pending';
+                  const imageId = img.id ? img.id : undefined;
+
+                  return (
+                    <div key={index} className="result-item">
+                      <div className="result-header">
+                        <span className="result-success">✅ {fileName}</span>
+                        <span className="result-size">{sizeMB} MB</span>
+                      </div>
+
+                      <div className="result-status">
+                        <span className="status-label">Estado:</span>
+                        <span className={`status-${processing}`}>
+                          {processing === 'pending' && '⏳ En cola para procesamiento'}
+                          {processing === 'processing' && '🔄 Procesando...'}
+                          {processing === 'completed' && '✅ Procesamiento completado'}
+                          {processing === 'failed' && '❌ Error en procesamiento'}
+                        </span>
+                      </div>
+
+                      {result.message && <div className="result-message">{result.message}</div>}
+
+                      <div style={{ marginTop: 8 }}>
+                        <button
+                          onClick={() => imageId && navigate(`/chat/${imageId}`)}
+                          className="action-button"
+                          disabled={!imageId}
+                          title={imageId ? 'Abrir chat' : 'No hay ID de imagen'}
+                        >
+                          💬 Ir al chat de la imagen
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+                .filter(Boolean)}
             </div>
             <div className="processing-info">
               <h4>ℹ️ Información sobre el procesamiento</h4>
