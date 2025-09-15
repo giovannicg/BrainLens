@@ -65,15 +65,10 @@ const ImageUpload: React.FC = () => {
     
     if (savedResults) {
       try {
-<<<<<<< HEAD
-        console.log('Resultados guardados encontrados:', savedResults);
-        setUploadResults(JSON.parse(savedResults));
-=======
         const parsed = JSON.parse(savedResults);
         // Sanear: mantener solo respuestas válidas
         const filtered = Array.isArray(parsed) ? parsed.filter(isValidUploadResponse) : [];
         setUploadResults(filtered);
->>>>>>> origin/main
       } catch (e) {
         console.error('Error al cargar resultados guardados:', e);
       }
@@ -171,11 +166,7 @@ const ImageUpload: React.FC = () => {
       window.clearTimeout(errorTimeoutRef.current);
     }
     const results: ImageUploadResponse[] = [];
-<<<<<<< HEAD
     console.log('Iniciando subida de archivos:', uploadedFiles);
-=======
-
->>>>>>> origin/main
     try {
       for (const fileWithName of uploadedFiles) {
         // Inicializar progreso para este archivo
@@ -188,27 +179,12 @@ const ImageUpload: React.FC = () => {
         }));
 
         try {
-<<<<<<< HEAD
-          console.log('Subiendo archivo:', fileWithName.file);
-          const result = await apiService.uploadImage(fileWithName.file, user.id, fileWithName.customName);
-          results.push(result);
-          console.log('Archivo subido con éxito:', result);
-
-          // Actualizar progreso como completado
-          setUploadProgress((prev: UploadProgress) => ({
-            ...prev,
-            [fileWithName.id]: {
-              status: 'completed',
-              progress: 100,
-              result
-=======
           // Navegar a página de carga y dejar que allí se ejecute la subida y redirección
           navigate('/loading/upload', {
             state: {
               file: fileWithName.file,
               userId: user.id,
               customName: fileWithName.customName,
->>>>>>> origin/main
             }
           });
           return; // salir tras navegar para un mejor UX
@@ -240,15 +216,7 @@ const ImageUpload: React.FC = () => {
         }
       }
       
-<<<<<<< HEAD
-      if (results.length > 0) {
-        console.log('Resultados de la subida:', results);
-        setUploadResults((prev: ImageUploadResponse[]) => [...prev, ...results]);
-        setUploadedFiles([]);
-      }
-=======
       setUploadResults((prev: ImageUploadResponse[]) => [...prev, ...results]);
->>>>>>> origin/main
       
       // Solo limpiar archivos y progreso si hay resultados exitosos
       if (results.length > 0) {
@@ -427,38 +395,6 @@ const ImageUpload: React.FC = () => {
               </button>
             </div>
             <div className="results-list">
-<<<<<<< HEAD
-              {uploadResults.map((result, index) => (
-                <div key={index} className="result-item">
-                  <div className="result-header">
-                    <span className="result-success">✅ {result.image?.original_filename || "" || 'Archivo subido'}</span>
-                    <span className="result-size">
-                      {result.image?.file_size
-                        ? (result.image.file_size / 1024 / 1024).toFixed(2) + ' MB'
-                        : 'Tamaño desconocido'
-                      } MB
-                    </span>
-                  </div>
-                  <div className="result-status">
-                    <span className="status-label">Estado:</span>
-                    <span className={`status-${result.processing_status}`}>
-                      {(result.processing_status || "") === 'validating' && '⏳ Validando imagen...'}
-                      {(result.processing_status || "") === 'processing' && '🔄 Procesando...'}
-                      {(result.processing_status || "") === 'completed' && '✅ Procesamiento completado'}
-                      {(result.processing_status || "") === 'failed' && '❌ Error en procesamiento'}
-                    </span>
-                  </div>
-                  <div className="result-message">
-                    {result.message}
-                  </div>
-                  <div style={{ marginTop: 8 }}>
-                    <button onClick={() => navigate(`/chat/${result.image.id}`)} className="action-button">
-                      💬 Ir al chat de la imagen
-                    </button>
-                  </div>
-                </div>
-              ))}
-=======
               {uploadResults
                 .filter((r): r is ImageUploadResponse => {
                   if (!r) return false;
@@ -508,7 +444,6 @@ const ImageUpload: React.FC = () => {
                   );
                 })
                 .filter(Boolean)}
->>>>>>> origin/main
             </div>
             <div className="processing-info">
               <h4>ℹ️ Información sobre el procesamiento</h4>

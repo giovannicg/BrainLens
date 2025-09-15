@@ -15,11 +15,7 @@ services:
     networks:
       - brainlens-network
 
-<<<<<<< HEAD
-=======
-  
 
->>>>>>> origin/main
   # Ollama (LLaMA en Docker)
   ollama:
     image: ollama/ollama:0.11.8
@@ -63,10 +59,6 @@ services:
       - DATABASE_NAME=brainlens
       - STORAGE_TYPE=local
       - LOCAL_STORAGE_PATH=/app/storage
-<<<<<<< HEAD
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-=======
->>>>>>> origin/main
       # VLM: usar modelo disponible
       - VLM_PROVIDER=bedrock
       - BEDROCK_MODEL_ID=amazon.nova-lite-v1:0
@@ -90,19 +82,12 @@ services:
       - image_storage:/app/storage
     depends_on:
       - mongodb
-<<<<<<< HEAD
-      - kafka
-=======
->>>>>>> origin/main
       - ollama
       - colab-service
     networks:
       - brainlens-network
-<<<<<<< HEAD
-=======
     env_file:
       - .env
->>>>>>> origin/main
 
   # Annotation Service
   annotation-service:
