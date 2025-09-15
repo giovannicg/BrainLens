@@ -63,7 +63,7 @@ def get_chat_use_case(
     return ChatAboutImageUseCase(chat_repo=chat_repo, image_repo=img_repo, vlm=vlm)
 
 def get_validate_upload_use_case():
-    return ValidateUploadUseCase(get_storage_service())
+    return ValidateUploadUseCase(get_storage_service(), get_image_repository())
 
 @router.post("/validate", response_model=dict)
 async def validate_medical_image(
@@ -100,107 +100,108 @@ async def validate_medical_image(
         logger.error(f"Error en validación de imagen: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error en validación: {str(e)}")
 
-@router.post("/validate-upload", response_model=ValidationJobResponse)
+@router.post("/validate-upload", response_model=ImageUploadResponse)
 async def validate_upload(
     file: UploadFile = File(...),
     user_id: str = Form(...),
     custom_filename: Optional[str] = Form(None),
     validate_upload_use_case: ValidateUploadUseCase = Depends(get_validate_upload_use_case)
 ):
-    """Fase 1: Subir imagen a staging y lanzar validación en background"""
+    """Validar médicamente y guardar la imagen de forma síncrona."""
     try:
         logger.info(f"Iniciando validación de upload para archivo: {file.filename}")
         
         # Leer contenido del archivo
         file_content = await file.read()
         
-        # Iniciar validación en background
-        job_id = await validate_upload_use_case.execute(
+        # Ejecutar validación síncrona y guardar imagen
+        result = await validate_upload_use_case.execute(
             file_content=file_content,
             original_filename=file.filename,
             user_id=user_id,
             custom_filename=custom_filename
         )
-        
-        logger.info(f"Job de validación creado: {job_id}")
-        
-        return ValidationJobResponse(
-            job_id=job_id,
-            status="validating",
-            message="Imagen subida a staging. Validación médica en progreso..."
+
+        image = result.get("image")
+        error_code = result.get("error_code")
+        error_detail = result.get("error_detail")
+        message = result.get("message", "")
+
+        if not image:
+            # Error en validación o predicción: devolver mensaje específico
+            return ImageUploadResponse(
+                message=message or "Error al procesar la imagen",
+                image=None,
+                processing_status="failed",
+                status="failed",
+                error_code=error_code,
+                error_detail=error_detail,
+            )
+
+        return ImageUploadResponse(
+            message=message or "Imagen validada y guardada",
+            image=ImageResponse(
+                id=str(image.id),
+                filename=image.filename,
+                original_filename=image.original_filename,
+                file_size=image.file_size,
+                mime_type=image.mime_type,
+                width=image.width,
+                height=image.height,
+                user_id=image.user_id,
+                upload_date=image.upload_date,
+                processing_status=image.processing_status,
+                metadata=image.metadata,
+            ),
+            processing_status=image.processing_status,
+            status="completed"
         )
         
     except Exception as e:
         logger.error(f"Error en validate_upload: {str(e)}")
         raise HTTPException(status_code=400, detail=f"Error en validación: {str(e)}")
 
-@router.get("/validate-jobs/{job_id}", response_model=ValidationJobStatusResponse)
-async def get_validation_job_status(
-    job_id: str,
-    validate_upload_use_case: ValidateUploadUseCase = Depends(get_validate_upload_use_case)
-):
-    """Obtener estado de un job de validación"""
-    try:
-        logger.info(f"Consultando estado de job: {job_id}")
-        
-        job_status = await validate_upload_use_case.get_job_status(job_id)
-        
-        return ValidationJobStatusResponse(
-            job_id=job_id,
-            status=job_status["status"],
-            message=job_status.get("message", ""),
-            image_id=job_status.get("image_id"),
-            error=job_status.get("error")
-        )
-        
-    except Exception as e:
-        logger.error(f"Error obteniendo estado de job {job_id}: {str(e)}")
-        raise HTTPException(status_code=404, detail=f"Job no encontrado: {str(e)}")
+# Ruta de compatibilidad antigua eliminada: el flujo ahora es síncrono
 
 @router.post("/upload", response_model=ImageUploadResponse)
 async def upload_image(
     file: UploadFile = File(...),
     user_id: str = Form(...),
-    custom_filename: Optional[str] = Form(None),
-    validate_upload_use_case: ValidateUploadUseCase = Depends(get_validate_upload_use_case)
+    custom_filename: Optional[str] = Form(None)
 ):
-    """Subir una nueva imagen y lanzar procesamiento en background"""
     try:
-        logger.info(f"[UPLOAD] Recibida petición de subida: filename={file.filename}, user_id={user_id}, custom_name={custom_filename}")
         file_content = await file.read()
-        logger.info(f"[UPLOAD] Bytes leídos del archivo: {len(file_content)}")
-
-        # Usar el caso de uso para guardar la imagen (sin procesar)
         upload_use_case = UploadImageUseCase(get_image_repository(), get_storage_service())
-        image_entity = await upload_use_case.execute(
+        result = await upload_use_case.execute(
             file_content=file_content,
             original_filename=file.filename,
             user_id=user_id,
             custom_filename=custom_filename
         )
-        logger.info(f"[UPLOAD] Imagen guardada en base de datos con ID: {image_entity.id}")
-
-        # Lanzar tarea Celery para validación y predicción en background
-        import mimetypes
-        mime_type, _ = mimetypes.guess_type(file.filename)
-        if not mime_type:
-            mime_type = "application/octet-stream"
-        from tasks.tumor_analysis_tasks import validate_medical_image_task
-        validate_medical_image_task.delay(str(image_entity.id), file_content, mime_type)
-        logger.info(f"[UPLOAD] Tarea Celery lanzada para imagen {image_entity.id}")
-
+        image = result.get("image")
+        if not image:
+            raise ValueError("No se pudo subir la imagen")
         return ImageUploadResponse(
-            success=True,
-            message="Imagen subida correctamente. Procesamiento en background iniciado.",
-            job_id=str(image_entity.id),
-            status="pending",
-            processing_status="pending",
-            prediction=None
+            message=result.get("message", "Imagen subida correctamente"),
+            image=ImageResponse(
+                id=str(image.id),
+                filename=image.filename,
+                original_filename=image.original_filename,
+                file_size=image.file_size,
+                mime_type=image.mime_type,
+                width=image.width,
+                height=image.height,
+                user_id=image.user_id,
+                upload_date=image.upload_date,
+                processing_status=image.processing_status,
+                metadata=image.metadata,
+            ),
+            processing_status=image.processing_status,
+            status="completed"
         )
-
     except Exception as e:
-        logger.error(f"[UPLOAD] Error en procesamiento en background: {str(e)}")
-        raise HTTPException(status_code=400, detail=f"Error en procesamiento: {str(e)}")
+        logger.error(f"[UPLOAD] Error: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/{image_id}/chat", response_model=ChatHistoryResponse)
 async def get_chat_history(

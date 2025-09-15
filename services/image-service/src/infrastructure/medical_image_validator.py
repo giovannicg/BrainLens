@@ -4,6 +4,8 @@ logger.info('[MEDICAL_IMAGE_VALIDATOR] Archivo medical_image_validator.py cargad
 import os
 import logging
 from typing import Tuple, Dict, Any
+from io import BytesIO
+from PIL import Image
 from adapters.gateways.vlm_gateway import VisionLanguageGateway
 
 logger = logging.getLogger(__name__)
@@ -27,8 +29,8 @@ class MedicalImageValidator:
     async def validate_brain_ct(self, image_bytes: bytes, mime_type: str) -> Tuple[bool, Dict[str, Any]]:
         logger.info(f'[MEDICAL_IMAGE_VALIDATOR] validate_brain_ct llamada con mime_type={mime_type}, bytes={len(image_bytes)}')
         """
-        Valida si la imagen es una tomografía cerebral (CT) válida.
-        
+        Valida si la imagen es una tomografía del cerebro válida.
+
         Returns:
             Tuple[bool, Dict]: (es_valida, informacion_detallada)
         """
@@ -37,16 +39,46 @@ class MedicalImageValidator:
             
             # Prompt simplificado y directo
             validation_prompt = """
-            ¿Es esta imagen una tomografía computarizada (CT) del cerebro?
+            ¿Es esta imagen una tomografía del cerebro?
             
             Responde solo: SÍ o NO
             """
             
-            # Usar el VLM para analizar la imagen
+            # Preprocesar imagen: convertir a PNG RGB y limitar resolución
+            try:
+                with BytesIO(image_bytes) as bio:
+                    img = Image.open(bio)
+                    if img.mode != 'RGB':
+                        img = img.convert('RGB')
+                    # Reducción de tamaño: lado largo máx 1024 px
+                    max_side = 1024
+                    w, h = img.size
+                    scale = min(1.0, max_side / max(w, h))
+                    if scale < 1.0:
+                        new_size = (int(w * scale), int(h * scale))
+                        img = img.resize(new_size)
+                    out = BytesIO()
+                    img.save(out, format='PNG', optimize=True)
+                    out_bytes = out.getvalue()
+                    out.close()
+                    preprocessed_bytes = out_bytes
+                    preprocessed_mime = 'image/png'
+            except Exception as prep_err:
+                logger.error(f"Error preprocesando imagen: {prep_err}")
+                return False, {
+                    "es_tomografia_cerebral": False,
+                    "muestra_estructuras_cerebrales": False,
+                    "calidad_suficiente": False,
+                    "descripcion": "Error al convertir la imagen a PNG RGB",
+                    "error": str(prep_err),
+                    "validation_error": True
+                }
+
+            # Usar el VLM para analizar la imagen (base64 + JSON)
             response = self.vlm.ask_about_image(
                 prompt=validation_prompt,
-                image_bytes=image_bytes,
-                mime_type=mime_type
+                image_bytes=preprocessed_bytes,
+                mime_type=preprocessed_mime
             )
             
             logger.info(f"Respuesta del VLM para validación: {response}")
