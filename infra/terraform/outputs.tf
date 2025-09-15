@@ -33,3 +33,13 @@ output "images_url" {
   value = "http://${aws_lb.alb.dns_name}/api/v1/images"
 }
 
+output "frontend_url" {
+  value = "http://${aws_lb.alb.dns_name}"
+  description = "URL del frontend"
+}
+
+output "alb_dns_name" {
+  value = aws_lb.alb.dns_name
+  description = "DNS name del Application Load Balancer"
+}
+

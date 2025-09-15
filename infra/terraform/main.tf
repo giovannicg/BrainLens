@@ -47,6 +47,14 @@ resource "aws_route_table_association" "b" {
   route_table_id = aws_route_table.public.id
 }
 
+# VPC Endpoint for S3 (for better connectivity and reduced costs)
+resource "aws_vpc_endpoint" "s3" {
+  vpc_id       = aws_vpc.main.id
+  service_name = "com.amazonaws.${var.aws_region}.s3"
+  vpc_endpoint_type = "Gateway"
+  route_table_ids = [aws_route_table.public.id]
+}
+
 resource "aws_security_group" "alb_sg" {
   name        = "${local.name}-alb-sg"
   description = "ALB SG"
@@ -149,8 +157,12 @@ resource "aws_lb_target_group" "tg_front" {
   vpc_id      = aws_vpc.main.id
   target_type = "ip"
   health_check {
-    path    = "/"
-    matcher = "200-399"
+    path                = "/"
+    matcher             = "200-399"
+    interval            = 30
+    timeout             = 5
+    healthy_threshold   = 3
+    unhealthy_threshold = 3
   }
 }
 
@@ -161,8 +173,12 @@ resource "aws_lb_target_group" "tg_back" {
   vpc_id      = aws_vpc.main.id
   target_type = "ip"
   health_check {
-    path    = "/api/v1/images/"
-    matcher = "200-399"
+    path                = "/api/v1/images/health"
+    matcher             = "200-399"
+    interval            = 30
+    timeout             = 5
+    healthy_threshold   = 3
+    unhealthy_threshold = 3
   }
 }
 
@@ -225,6 +241,9 @@ resource "aws_ecs_task_definition" "backend" {
         { name = "AWS_DEFAULT_REGION", value = var.aws_region },
         { name = "VLM_TIMEOUT", value = tostring(var.vlm_timeout) },
         { name = "COLAB_SERVICE_URL", value = "http://${aws_lb.alb.dns_name}/api/v1/colab" },
+        { name = "ENVIRONMENT", value = "production" },
+        { name = "ALB_DNS_NAME", value = aws_lb.alb.dns_name },
+        { name = "DEBUG", value = "false" },
       ]
       logConfiguration = {
         logDriver = "awslogs"
@@ -258,7 +277,8 @@ resource "aws_ecs_task_definition" "frontend" {
       essential = true
       portMappings = [{ containerPort = 3000, hostPort = 3000 }]
       environment = [
-        { name = "REACT_APP_IMAGE_API_URL", value = "http://${aws_lb.alb.dns_name}:80" }
+        { name = "REACT_APP_ALB_DNS", value = aws_lb.alb.dns_name },
+        { name = "NODE_ENV", value = "production" }
       ]
       logConfiguration = {
         logDriver = "awslogs"
@@ -318,8 +338,12 @@ resource "aws_lb_target_group" "tg_auth" {
   vpc_id      = aws_vpc.main.id
   target_type = "ip"
   health_check {
-    path    = "/api/v1/auth/health"
-    matcher = "200-399"
+    path                = "/api/v1/auth/health"
+    matcher             = "200-399"
+    interval            = 30
+    timeout             = 5
+    healthy_threshold   = 3
+    unhealthy_threshold = 3
   }
 }
 
@@ -330,7 +354,7 @@ resource "aws_lb_target_group" "tg_annotation" {
   vpc_id      = aws_vpc.main.id
   target_type = "ip"
   health_check {
-    path    = "/api/v1/annotations/"
+    path    = "/api/v1/annotations/health"
     matcher = "200-399"
   }
 }
@@ -342,8 +366,12 @@ resource "aws_lb_target_group" "tg_colab" {
   vpc_id      = aws_vpc.main.id
   target_type = "ip"
   health_check {
-    path    = "/health"
-    matcher = "200-399"
+    path                = "/health"
+    matcher             = "200-399"
+    interval            = 30
+    timeout             = 5
+    healthy_threshold   = 3
+    unhealthy_threshold = 3
   }
 }
 
@@ -408,7 +436,9 @@ resource "aws_ecs_task_definition" "auth" {
         { name = "DATABASE_NAME", value = "brainlens" },
         { name = "HOST", value = "0.0.0.0" },
         { name = "PORT", value = "8001" },
-        { name = "DEBUG", value = "true" },
+        { name = "ENVIRONMENT", value = "production" },
+        { name = "ALB_DNS_NAME", value = aws_lb.alb.dns_name },
+        { name = "DEBUG", value = "false" },
       ]
       logConfiguration = {
         logDriver = "awslogs"
@@ -445,7 +475,9 @@ resource "aws_ecs_task_definition" "annotation" {
         { name = "DATABASE_NAME", value = "brainlens" },
         { name = "HOST", value = "0.0.0.0" },
         { name = "PORT", value = "8003" },
-        { name = "DEBUG", value = "true" },
+        { name = "ENVIRONMENT", value = "production" },
+        { name = "ALB_DNS_NAME", value = aws_lb.alb.dns_name },
+        { name = "DEBUG", value = "false" },
       ]
       logConfiguration = {
         logDriver = "awslogs"
@@ -482,7 +514,9 @@ resource "aws_ecs_task_definition" "colab" {
         { name = "DATABASE_NAME", value = "brainlens" },
         { name = "HOST", value = "0.0.0.0" },
         { name = "PORT", value = "8004" },
-        { name = "DEBUG", value = "true" },
+        { name = "ENVIRONMENT", value = "production" },
+        { name = "ALB_DNS_NAME", value = aws_lb.alb.dns_name },
+        { name = "DEBUG", value = "false" },
       ]
       logConfiguration = {
         logDriver = "awslogs"

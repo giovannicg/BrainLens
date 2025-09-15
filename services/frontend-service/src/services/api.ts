@@ -1,5 +1,18 @@
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8001';
-const IMAGE_API_BASE_URL = process.env.REACT_APP_IMAGE_API_URL || 'http://localhost:8002';
+// Configuración dinámica de URLs según el entorno
+const getApiBaseUrl = () => {
+  const runtimeOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+  
+  // En producción, usar el ALB DNS si está configurado
+  if (process.env.NODE_ENV === 'production' && process.env.REACT_APP_ALB_DNS) {
+    return `http://${process.env.REACT_APP_ALB_DNS}`;
+  }
+  
+  // En desarrollo o si no hay ALB configurado, usar variables de entorno o runtime origin
+  return process.env.REACT_APP_API_URL || runtimeOrigin;
+};
+
+const API_BASE_URL = getApiBaseUrl() + '/api/v1';
+const IMAGE_API_BASE_URL = getApiBaseUrl() + '/api/v1';
 
 export interface UserRegisterRequest {
   email: string;
@@ -172,7 +185,8 @@ class ApiService {
   constructor() {
     this.baseUrl = API_BASE_URL;
     this.imageApiUrl = IMAGE_API_BASE_URL;
-    this.annotationApiUrl = process.env.REACT_APP_ANNOTATION_API_URL || 'http://localhost:8003';
+    // Annotation API usa la misma base URL que los otros servicios
+    this.annotationApiUrl = getApiBaseUrl();
   }
 
   private async request<T>(
