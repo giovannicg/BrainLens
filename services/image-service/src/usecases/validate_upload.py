@@ -1,119 +1,129 @@
 import os
-import uuid
-import json
 import logging
 from datetime import datetime
 from typing import Optional, Dict, Any
-import asyncio
+import mimetypes
 
 from infrastructure.storage import StorageService
-from tasks.validation_tasks import validate_upload_task
+from infrastructure.repositories.MongoImageRepository import MongoImageRepository
+from domain.entities.Image import Image as ImageEntity
+import os
+import requests
 
 logger = logging.getLogger(__name__)
 
 class ValidateUploadUseCase:
-    def __init__(self, storage_service: StorageService):
+    def __init__(self, storage_service: StorageService, image_repository: MongoImageRepository):
         self.storage_service = storage_service
-        logger.info(f"ValidateUploadUseCase inicializado con storage_service: {type(storage_service)}")
+        self.image_repository = image_repository
+        logger.info(f"ValidateUploadUseCase inicializado (sin Celery) con storage_service: {type(storage_service)}")
         
-    async def execute(self, file_content: bytes, original_filename: str, user_id: str, custom_filename: Optional[str] = None) -> str:
-        """Fase 1: Subir imagen a staging y lanzar validación en background"""
+    async def execute(self, file_content: bytes, original_filename: str, user_id: str, custom_filename: Optional[str] = None) -> Dict[str, Any]:
+        """Validar y guardar la imagen de forma síncrona y devolver la entidad creada."""
         try:
-            logger.info(f"Iniciando validación de upload para archivo: {original_filename}")
-            
-            # Validar archivo básico
+            logger.info(f"[VALIDATE_UPLOAD] Inicio para archivo: {original_filename}")
+
+            # Validaciones básicas
             if not file_content:
                 raise ValueError("El archivo está vacío")
-            
             if not self.storage_service.is_valid_image_type(original_filename):
                 raise ValueError("Tipo de archivo no válido")
-            
             if len(file_content) > self.storage_service.get_max_file_size():
                 raise ValueError("El archivo es demasiado grande")
-            
-            # Generar job_id único
-            job_id = str(uuid.uuid4())
-            
-            # Guardar archivo en staging
-            staging_filename = f"staging/{job_id}_{original_filename}"
-            staging_path = await self.storage_service.save_to_staging(file_content, staging_filename)
-            
-            logger.info(f"Archivo guardado en staging: {staging_path}")
-            
-            # Crear metadata del job
-            job_metadata = {
-                "job_id": job_id,
-                "user_id": user_id,
-                "original_filename": original_filename,
-                "custom_filename": custom_filename,
-                "staging_path": staging_path,
-                "file_size": len(file_content),
-                "created_at": datetime.utcnow().isoformat(),
-                "status": "validating"
-            }
-            
-            # Guardar metadata del job en Redis (simulado con archivo temporal)
-            await self._save_job_metadata(job_id, job_metadata)
-            
-            # Lanzar validación en background
-            validate_upload_task.delay(job_id, staging_path, original_filename, user_id, custom_filename)
-            
-            logger.info(f"Job de validación lanzado: {job_id}")
-            
-            return job_id
-            
-        except Exception as e:
-            logger.error(f"Error en validate_upload: {str(e)}")
-            raise
-    
-    async def get_job_status(self, job_id: str) -> Dict[str, Any]:
-        """Obtener estado de un job de validación"""
-        try:
-            # Obtener metadata del job desde Redis (simulado)
-            job_metadata = await self._get_job_metadata(job_id)
-            
-            if not job_metadata:
-                raise ValueError(f"Job no encontrado: {job_id}")
-            
+
+            # Determinar MIME
+            mime_type, _ = mimetypes.guess_type(original_filename)
+            if not mime_type:
+                mime_type = "application/octet-stream"
+
+            # Validación médica directa
+            from infrastructure.medical_image_validator import MedicalImageValidator
+            validator = MedicalImageValidator()
+            try:
+                is_valid_ct, validation_info = await validator.validate_brain_ct(file_content, mime_type)
+            except Exception as val_err:
+                return {
+                    "image": None,
+                    "message": "Error en validación médica",
+                    "error_code": "validator_error",
+                    "error_detail": str(val_err),
+                }
+
+            if not is_valid_ct:
+                return {
+                    "image": None,
+                    "message": f"La imagen no es una tomografía cerebral válida. {validation_info.get('descripcion', '')}",
+                    "error_code": "invalid_medical_image",
+                    "error_detail": validation_info.get('descripcion', ''),
+                }
+
+            # Guardar en almacenamiento definitivo
+            unique_filename, file_info = await self.storage_service.save_image(file_content, original_filename, user_id)
+
+            # Crear y persistir entidad
+            image = ImageEntity(
+                filename=unique_filename,
+                original_filename=custom_filename if custom_filename else original_filename,
+                file_path=file_info["file_path"],
+                file_size=file_info["file_size"],
+                mime_type=file_info["mime_type"],
+                width=file_info["width"],
+                height=file_info["height"],
+                user_id=user_id,
+                upload_date=datetime.utcnow(),
+                processing_status="pending",
+                metadata={
+                    "medical_validation": {
+                        "status": "completed",
+                        "is_valid_ct": True,
+                        "descripcion": validation_info.get("descripcion", "Validación médica exitosa"),
+                        "completed_at": datetime.utcnow().isoformat(),
+                    },
+                    **file_info.get("metadata", {}),
+                },
+            )
+
+            saved = await self.image_repository.save(image)
+
+            # Predicción síncrona (colab-service)
+            prediction_url = os.getenv("COLAB_PREDICT_URL", "http://colab-service:8004/predict")
+            try:
+                with open(saved.file_path, "rb") as img_file:
+                    files = {"image": img_file}
+                    resp = requests.post(prediction_url, files=files, timeout=300)
+                if resp.status_code == 200:
+                    pred_data = resp.json()
+                    # Actualizar imagen a completed con predicción
+                    update_data: Dict[str, Any] = {
+                        "processing_status": "completed",
+                        "metadata.prediction": pred_data,
+                        "metadata.processing_started": image.metadata.get("processing_started") if image.metadata else datetime.utcnow().isoformat(),
+                        "metadata.processing_completed": datetime.utcnow().isoformat(),
+                        "metadata.processing_status": "completed",
+                    }
+                    await self.image_repository.update(str(saved.id), update_data)
+                    # Traer entidad actualizada
+                    saved = await self.image_repository.find_by_id(str(saved.id))
+                else:
+                    return {
+                        "image": saved,
+                        "message": "Error durante la predicción",
+                        "error_code": "prediction_error",
+                        "error_detail": resp.text,
+                    }
+            except Exception as pred_err:
+                return {
+                    "image": saved,
+                    "message": "Excepción durante la predicción",
+                    "error_code": "prediction_exception",
+                    "error_detail": str(pred_err),
+                }
+
             return {
-                "status": job_metadata.get("status", "unknown"),
-                "message": job_metadata.get("message", ""),
-                "image_id": job_metadata.get("image_id"),
-                "error": job_metadata.get("error")
+                "image": saved,
+                "message": "Imagen validada, guardada y predicción generada",
             }
-            
+
         except Exception as e:
-            logger.error(f"Error obteniendo estado de job {job_id}: {str(e)}")
+            logger.error(f"Error en validate_upload síncrono: {str(e)}")
             raise
-    
-    async def _save_job_metadata(self, job_id: str, metadata: Dict[str, Any]):
-        """Guardar metadata del job (simulado con archivo)"""
-        try:
-            # En producción, esto sería Redis
-            jobs_dir = "/app/storage/jobs"
-            os.makedirs(jobs_dir, exist_ok=True)
-            
-            job_file = os.path.join(jobs_dir, f"{job_id}.json")
-            with open(job_file, 'w') as f:
-                json.dump(metadata, f, indent=2)
-                
-        except Exception as e:
-            logger.error(f"Error guardando metadata de job: {str(e)}")
-            raise
-    
-    async def _get_job_metadata(self, job_id: str) -> Optional[Dict[str, Any]]:
-        """Obtener metadata del job (simulado con archivo)"""
-        try:
-            # En producción, esto sería Redis
-            jobs_dir = "/app/storage/jobs"
-            job_file = os.path.join(jobs_dir, f"{job_id}.json")
-            
-            if not os.path.exists(job_file):
-                return None
-            
-            with open(job_file, 'r') as f:
-                return json.load(f)
-                
-        except Exception as e:
-            logger.error(f"Error obteniendo metadata de job: {str(e)}")
-            return None

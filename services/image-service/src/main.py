@@ -53,7 +53,6 @@ async def root():
             "get_by_id": "/api/v1/images/{image_id}",
             "get_by_status": "/api/v1/images/status/{status}",
             "delete": "/api/v1/images/{image_id}",
-            "download": "/api/v1/images/download/{image_id}",
             "processing_status": "/api/v1/images/{image_id}/processing-status"
         },
         "processing_states": {
