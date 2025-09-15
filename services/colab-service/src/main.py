@@ -22,6 +22,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/health")
+async def health():
+    return {"status": "ok", "service": "colab"}
+
 
 
 class PredictionResponse(BaseModel):

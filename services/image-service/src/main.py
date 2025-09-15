@@ -78,6 +78,15 @@ async def health_check():
         "background_processing": "enabled"
     }
 
+# Health bajo prefijo de API para ALB/productivo
+@app.get("/api/v1/images/health")
+async def health_check_api_v1():
+    return {
+        "status": "healthy",
+        "service": "image-service",
+        "database": "connected" if database.client else "disconnected"
+    }
+
 if __name__ == "__main__":
     import uvicorn
     host = os.getenv("HOST", "0.0.0.0")

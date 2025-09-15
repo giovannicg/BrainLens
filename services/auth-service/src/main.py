@@ -1,6 +1,7 @@
 import logging
 import os
 from fastapi import FastAPI
+from fastapi import APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from .infrastructure.database import connect_to_mongo, close_mongo_connection, health_check as db_health_check
 from .adapters.controllers.auth_controller import router as auth_router
@@ -49,7 +50,10 @@ async def shutdown_event():
     logging.info("Cerrando Auth Service...")
     await close_mongo_connection()
 
-app.include_router(auth_router)
+# Montar rutas bajo /api/v1 para entorno productivo
+api_v1 = APIRouter(prefix="/api/v1")
+api_v1.include_router(auth_router)  # auth_router ya tiene prefix="/auth"
+app.include_router(api_v1)
 
 @app.get("/")
 async def root():
@@ -59,7 +63,8 @@ async def root():
         "service": "auth"
     }
 
-@app.get("/health")
+# Health para ALB: /api/v1/auth/health
+@app.get("/api/v1/auth/health")
 async def health_check():
     """Verificar el estado de la API y la base de datos"""
     db_status = await db_health_check()
@@ -68,6 +73,8 @@ async def health_check():
         "database": db_status,
         "service": "auth"
     }
+
+if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("AUTH_SERVICE_PORT", "8001"))
     uvicorn.run(app, host="0.0.0.0", port=port)
