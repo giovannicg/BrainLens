@@ -24,7 +24,6 @@ RUN apt-get update && apt-get install -y \
     libfribidi-dev \
     libxcb1-dev \
     pkg-config \
-    redis-tools \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
     && rm -rf /tmp/* /var/tmp/*
@@ -40,9 +39,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copiar código de la aplicación
 COPY src/ ./src/
-
-# Copiar scripts
-COPY start_celery_worker.py .
 
 # Cambiar al directorio src
 WORKDIR /app/src
@@ -60,8 +56,6 @@ EXPOSE 8002
 
 # Variables de entorno para Celery
 ENV PYTHONPATH=/app/src
-ENV CELERY_BROKER_URL=redis://redis:6379/0
-ENV CELERY_RESULT_BACKEND=redis://redis:6379/0
 
 # Comando para ejecutar la aplicación
 CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8002"]

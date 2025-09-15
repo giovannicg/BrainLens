@@ -14,6 +14,8 @@ import Annotations from './pages/Annotations';
 import Predictions from './pages/Predictions';
 import PredictionResultsPage from './pages/PredictionResults';
 import ImageChat from './pages/ImageChat';
+import LoadingUpload from './pages/LoadingUpload';
+import LoadingPredict from './pages/LoadingPredict';
 
 function App() {
   return (
@@ -28,6 +30,8 @@ function App() {
               <Route path="/register" element={<Register />} />
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/upload" element={<ImageUpload />} />
+              <Route path="/loading/upload" element={<LoadingUpload />} />
+              <Route path="/loading/predict" element={<LoadingPredict />} />
               <Route path="/images" element={<Images />} />
               <Route path="/annotations" element={<Annotations />} />
               <Route path="/predictions" element={<Predictions />} />

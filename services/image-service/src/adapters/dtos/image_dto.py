@@ -22,6 +22,8 @@ class ImageUploadResponse(BaseModel):
     # Compatibilidad con respuestas previas
     success: Optional[bool] = None
     status: Optional[str] = None
+    error_code: Optional[str] = Field(None, description="Código de error específico si fallo")
+    error_detail: Optional[str] = Field(None, description="Detalle del error si fallo")
 
 class ImageListResponse(BaseModel):
     images: List[ImageResponse]
@@ -43,7 +45,6 @@ class TumorPredictionResult(BaseModel):
     clase_predicha: str = Field(..., description="Clase predicha (glioma, meningioma, no_tumor, pituitary)")
     confianza: float = Field(..., description="Confianza de la predicción (0-1)")
     probabilidades: Dict[str, float] = Field(..., description="Probabilidades para cada clase")
-    recomendacion: str = Field(..., description="Recomendación basada en el resultado")
 
 class ProcessingStatusResponse(BaseModel):
     image_id: str

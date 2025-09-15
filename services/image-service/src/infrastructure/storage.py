@@ -23,29 +23,38 @@ class StorageService:
             os.makedirs(os.path.join(self.local_storage_path, "staging"), exist_ok=True)
     
     async def save_image(self, file_content: bytes, original_filename: str, user_id: str) -> Tuple[str, dict]:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"[STORAGE] Guardando imagen para user_id={user_id}, original_filename={original_filename}")
         """Guardar una imagen y retornar información del archivo"""
         # Generar nombre único para el archivo
         file_extension = os.path.splitext(original_filename)[1].lower()
         unique_filename = f"{uuid.uuid4()}{file_extension}"
-        
+        logger.info(f"[STORAGE] Nombre único generado: {unique_filename}")
+
         # Crear directorio para el usuario si no existe
         user_dir = os.path.join(self.local_storage_path, "images", user_id)
         os.makedirs(user_dir, exist_ok=True)
-        
+        logger.info(f"[STORAGE] Directorio de usuario asegurado: {user_dir}")
+
         # Ruta completa del archivo
         file_path = os.path.join(user_dir, unique_filename)
-        
+        logger.info(f"[STORAGE] Ruta completa del archivo: {file_path}")
+
         # Guardar archivo
         async with aiofiles.open(file_path, 'wb') as f:
             await f.write(file_content)
-        
+        logger.info(f"[STORAGE] Archivo guardado en disco: {file_path}")
+
         # Obtener información del archivo
         file_size = len(file_content)
         mime_type = self._get_mime_type(file_extension)
-        
+        logger.info(f"[STORAGE] Tamaño: {file_size}, MIME: {mime_type}")
+
         # Obtener dimensiones de la imagen
         width, height = await self._get_image_dimensions(file_content)
-        
+        logger.info(f"[STORAGE] Dimensiones: width={width}, height={height}")
+
         # Crear metadata
         metadata = {
             "original_filename": original_filename,
@@ -54,7 +63,8 @@ class StorageService:
             "width": width,
             "height": height
         }
-        
+        logger.info(f"[STORAGE] Metadata creada: {metadata}")
+
         return unique_filename, {
             "file_path": file_path,
             "file_size": file_size,

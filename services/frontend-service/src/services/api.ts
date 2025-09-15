@@ -56,6 +56,8 @@ export interface ImageUploadResponse {
   message: string;
   image: ImageResponse;
   processing_status: string;
+  error_code?: string;
+  error_detail?: string;
 }
 
 export interface AnnotationPoint {
@@ -240,32 +242,21 @@ class ApiService {
     formData.append('user_id', userId);
     console.log('formData', formData);
     if (customName) {
-      formData.append('custom_name', customName);
+      formData.append('custom_filename', customName);
     }
-    
-    const url = `${this.imageApiUrl}/api/v1/images/upload`;
-    
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        body: formData,
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
-      }
 
-      return await response.json();
-    } catch (error) {
-      console.error('Image upload failed:', error);
-      throw error;
+    // Llamada directa síncrona
+    const url = `${this.imageApiUrl}/api/v1/images/validate-upload`;
+    const resp = await fetch(url, { method: 'POST', body: formData });
+    if (!resp.ok) {
+      const errorData = await resp.json().catch(() => ({}));
+      throw new Error(errorData.detail || `HTTP error! status: ${resp.status}`);
     }
+    const data = (await resp.json()) as ImageUploadResponse;
+    return data;
   }
 
-  async getValidationJobStatus(jobId: string): Promise<ValidationJobStatusResponse> {
-    return this.request<ValidationJobStatusResponse>(`/api/v1/images/validate-jobs/${jobId}`, {}, true);
-  }
+  // Jobs de validación eliminados (flujo ahora síncrono)
 
   async getProcessingStatus(imageId: string): Promise<ProcessingStatusResponse> {
     const url = `${this.imageApiUrl}/api/v1/images/${imageId}/processing-status`;

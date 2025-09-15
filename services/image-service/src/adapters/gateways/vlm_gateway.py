@@ -3,6 +3,8 @@ import base64
 import logging
 import requests
 from typing import Optional
+from botocore.config import Config as BotoConfig
+import boto3
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +16,9 @@ class VisionLanguageGateway:
         self.system_prompt = os.getenv("VLM_SYSTEM_PROMPT", "Eres un asistente médico especializado en análisis de imágenes radiológicas.")
         self.force_spanish = os.getenv("VLM_FORCE_SPANISH", "true").lower() == "true"
         self.timeout = int(os.getenv("VLM_TIMEOUT", "60"))  # Timeout en segundos
+        # Bedrock
+        self.aws_region = os.getenv("AWS_REGION", os.getenv("AWS_DEFAULT_REGION", "us-east-1"))
+        self.bedrock_model_id = os.getenv("BEDROCK_MODEL_ID", os.getenv("VLM_MODEL", "amazon.nova-lite-v1:0"))
         
         logger.info(f"VLM Gateway inicializado: provider={self.provider}, model={self.model}, timeout={self.timeout}s")
     
@@ -24,6 +29,8 @@ class VisionLanguageGateway:
             
             if self.provider == "ollama":
                 return self._ask_ollama(prompt, image_bytes, mime_type)
+            if self.provider == "bedrock":
+                return self._ask_bedrock(prompt, image_bytes, mime_type)
             else:
                 raise ValueError(f"Proveedor VLM no soportado: {self.provider}")
                 
@@ -105,5 +112,57 @@ class VisionLanguageGateway:
         except Exception as e:
             logger.error(f"Error inesperado en Ollama: {str(e)}")
             raise
+
+    def _ask_bedrock(self, prompt: str, image_bytes: bytes, mime_type: str) -> str:
+        """Hacer pregunta a AWS Bedrock (Nova vision)."""
+        try:
+            logger.info(f"Enviando request a Bedrock model={self.bedrock_model_id} region={self.aws_region}")
+            # Bedrock converse API
+            client = boto3.client(
+                "bedrock-runtime",
+                region_name=self.aws_region,
+                config=BotoConfig(read_timeout=self.timeout, retries={"max_attempts": 2})
+            )
+
+            # Construir contenido: Bedrock Nova solo permite roles 'user' o 'assistant'
+            # Inyectamos el system prompt como prefijo del mensaje de usuario
+            combined_text = f"{self.system_prompt}\n\n{prompt}" if self.system_prompt else prompt
+            user_parts = [{"text": combined_text}]
+
+            # Imagen como bytes (Nova acepta bytes con formato)
+            img_format = "png" if "/png" in mime_type or mime_type.endswith("png") else "jpeg"
+            image_part = {
+                "image": {
+                    "format": img_format,
+                    "source": {"bytes": image_bytes}
+                }
+            }
+            user_parts.append(image_part)
+
+            messages = [{"role": "user", "content": user_parts}]
+
+            resp = client.converse(
+                modelId=self.bedrock_model_id,
+                messages=messages,
+                inferenceConfig={
+                    "maxTokens": 256,
+                    "temperature": 0.2,
+                },
+            )
+
+            # Parsear salida
+            output = resp.get("output", {})
+            message = output.get("message", {})
+            content = message.get("content", [])
+            for part in content:
+                if "text" in part:
+                    return part["text"].strip()
+            # Fallback en caso de diferentes formatos
+            text = output.get("text") or ""
+            return (text or "").strip()
+
+        except Exception as e:
+            logger.error(f"Error en Bedrock VLM: {e}")
+            raise Exception(f"Error en Bedrock VLM: {str(e)}")
 
 

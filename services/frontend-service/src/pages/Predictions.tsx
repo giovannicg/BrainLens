@@ -173,7 +173,7 @@ const Predictions: React.FC = () => {
                         {prediction.prediction.recomendacion && (
                           <div className="prediction-item">
                             <strong>Recomendación:</strong>
-                            <span className="prediction-value">{prediction.prediction.recomendacion}</span>
+                            <span className="prediction-value">{prediction.prediction.recomendacion ? '-' : 'N/A'}</span>
                           </div>
                         )}
                       </div>

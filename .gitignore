@@ -7,6 +7,12 @@ __pycache__/
 modelo_multiclase_final.keras
 # C extensions
 *.so
+#terraform
+infra/terraform/.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+.terraform.lock.hcl
 
 # Distribution / packaging
 .Python
