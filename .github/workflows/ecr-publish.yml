@@ -20,22 +20,22 @@ jobs:
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v4
       with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ vars.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ env.AWS_REGION }}
 
     - name: Login to Amazon ECR
       id: ecr
       uses: aws-actions/amazon-ecr-login@v2
 
-    - name: Set ECR repo URIs (from Terraform outputs)
+    - name: Set ECR repo URIs (from repo variables)
       id: setvars
       run: |
-        echo "ECR_FRONTEND=${{ secrets.ECR_FRONTEND_URI }}" >> $GITHUB_ENV
-        echo "ECR_IMAGE=${{ secrets.ECR_IMAGE_URI }}" >> $GITHUB_ENV
-        echo "ECR_AUTH=${{ secrets.ECR_AUTH_URI }}" >> $GITHUB_ENV
-        echo "ECR_COLAB=${{ secrets.ECR_COLAB_URI }}" >> $GITHUB_ENV
-        echo "ECR_ANNOTATION=${{ secrets.ECR_ANNOTATION_URI }}" >> $GITHUB_ENV
+        echo "ECR_FRONTEND=${{ vars.ECR_FRONTEND_URI }}" >> $GITHUB_ENV
+        echo "ECR_IMAGE=${{ vars.ECR_IMAGE_URI }}" >> $GITHUB_ENV
+        echo "ECR_AUTH=${{ vars.ECR_AUTH_URI }}" >> $GITHUB_ENV
+        echo "ECR_COLAB=${{ vars.ECR_COLAB_URI }}" >> $GITHUB_ENV
+        echo "ECR_ANNOTATION=${{ vars.ECR_ANNOTATION_URI }}" >> $GITHUB_ENV
 
     - name: Build and push Frontend
       uses: docker/build-push-action@v5
@@ -75,9 +75,9 @@ jobs:
     - name: Force new deployment ECS (backend)
       if: ${{ success() }}
       run: |
-        aws ecs update-service --cluster ${{ secrets.ECS_CLUSTER_NAME }} --service ${{ secrets.ECS_BACK_SERVICE_NAME }} --force-new-deployment
+        aws ecs update-service --cluster ${{ vars.ECS_CLUSTER_NAME }} --service ${{ vars.ECS_BACK_SERVICE_NAME }} --force-new-deployment
 
     - name: Force new deployment ECS (frontend)
       if: ${{ success() }}
       run: |
-        aws ecs update-service --cluster ${{ secrets.ECS_CLUSTER_NAME }} --service ${{ secrets.ECS_FRONT_SERVICE_NAME }} --force-new-deployment
+        aws ecs update-service --cluster ${{ vars.ECS_CLUSTER_NAME }} --service ${{ vars.ECS_FRONT_SERVICE_NAME }} --force-new-deployment
