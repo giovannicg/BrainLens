@@ -17,3 +17,19 @@ output "alb_dns" {
   value = aws_lb.alb.dns_name
 }
 
+output "auth_url" {
+  value = "http://${aws_lb.alb.dns_name}/api/v1/auth"
+}
+
+output "annotation_url" {
+  value = "http://${aws_lb.alb.dns_name}/api/v1/annotations"
+}
+
+output "colab_url" {
+  value = "http://${aws_lb.alb.dns_name}/api/v1/colab"
+}
+
+output "images_url" {
+  value = "http://${aws_lb.alb.dns_name}/api/v1/images"
+}
+

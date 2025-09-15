@@ -81,3 +81,18 @@ jobs:
       if: ${{ success() }}
       run: |
         aws ecs update-service --cluster ${{ vars.ECS_CLUSTER_NAME }} --service ${{ vars.ECS_FRONT_SERVICE_NAME }} --force-new-deployment
+
+    - name: Force new deployment ECS (auth)
+      if: ${{ success() && vars.ECS_AUTH_SERVICE_NAME != '' }}
+      run: |
+        aws ecs update-service --cluster ${{ vars.ECS_CLUSTER_NAME }} --service ${{ vars.ECS_AUTH_SERVICE_NAME }} --force-new-deployment
+
+    - name: Force new deployment ECS (annotation)
+      if: ${{ success() && vars.ECS_ANN_SERVICE_NAME != '' }}
+      run: |
+        aws ecs update-service --cluster ${{ vars.ECS_CLUSTER_NAME }} --service ${{ vars.ECS_ANN_SERVICE_NAME }} --force-new-deployment
+
+    - name: Force new deployment ECS (colab)
+      if: ${{ success() && vars.ECS_COLAB_SERVICE_NAME != '' }}
+      run: |
+        aws ecs update-service --cluster ${{ vars.ECS_CLUSTER_NAME }} --service ${{ vars.ECS_COLAB_SERVICE_NAME }} --force-new-deployment
