@@ -224,6 +224,7 @@ resource "aws_ecs_task_definition" "backend" {
         { name = "AWS_REGION", value = var.aws_region },
         { name = "AWS_DEFAULT_REGION", value = var.aws_region },
         { name = "VLM_TIMEOUT", value = tostring(var.vlm_timeout) },
+        { name = "COLAB_SERVICE_URL", value = "http://${aws_lb.alb.dns_name}/api/v1/colab" },
       ]
       logConfiguration = {
         logDriver = "awslogs"
@@ -306,6 +307,247 @@ resource "aws_ecs_service" "front" {
     target_group_arn = aws_lb_target_group.tg_front.arn
     container_name   = "frontend"
     container_port   = 3000
+  }
+}
+
+# Target groups for other backend services
+resource "aws_lb_target_group" "tg_auth" {
+  name        = "${local.name}-auth-tg"
+  port        = 8001
+  protocol    = "HTTP"
+  vpc_id      = aws_vpc.main.id
+  target_type = "ip"
+  health_check {
+    path    = "/api/v1/auth/health"
+    matcher = "200-399"
+  }
+}
+
+resource "aws_lb_target_group" "tg_annotation" {
+  name        = "${local.name}-ann-tg"
+  port        = 8003
+  protocol    = "HTTP"
+  vpc_id      = aws_vpc.main.id
+  target_type = "ip"
+  health_check {
+    path    = "/api/v1/annotations/"
+    matcher = "200-399"
+  }
+}
+
+resource "aws_lb_target_group" "tg_colab" {
+  name        = "${local.name}-colab-tg"
+  port        = 8004
+  protocol    = "HTTP"
+  vpc_id      = aws_vpc.main.id
+  target_type = "ip"
+  health_check {
+    path    = "/health"
+    matcher = "200-399"
+  }
+}
+
+# Listener rules for path routing
+resource "aws_lb_listener_rule" "auth_route" {
+  listener_arn = aws_lb_listener.http.arn
+  priority     = 20
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.tg_auth.arn
+  }
+  condition {
+    path_pattern { values = ["/api/v1/auth/*"] }
+  }
+}
+
+resource "aws_lb_listener_rule" "annotation_route" {
+  listener_arn = aws_lb_listener.http.arn
+  priority     = 30
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.tg_annotation.arn
+  }
+  condition {
+    path_pattern { values = ["/api/v1/annotations/*"] }
+  }
+}
+
+resource "aws_lb_listener_rule" "colab_route" {
+  listener_arn = aws_lb_listener.http.arn
+  priority     = 40
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.tg_colab.arn
+  }
+  condition {
+    path_pattern { values = ["/api/v1/colab/*"] }
+  }
+}
+
+# Task definitions for auth, annotation, colab
+resource "aws_ecs_task_definition" "auth" {
+  family                   = "${local.name}-auth"
+  cpu                      = "256"
+  memory                   = "512"
+  network_mode             = "awsvpc"
+  requires_compatibilities = ["FARGATE"]
+  execution_role_arn       = aws_iam_role.task_exec.arn
+  task_role_arn            = aws_iam_role.task_role.arn
+  runtime_platform {
+    operating_system_family = "LINUX"
+    cpu_architecture        = "X86_64"
+  }
+  container_definitions = jsonencode([
+    {
+      name      = "auth-service"
+      image     = aws_ecr_repository.auth.repository_url
+      essential = true
+      portMappings = [{ containerPort = 8001, hostPort = 8001 }]
+      environment = [
+        { name = "MONGODB_URL", value = var.mongo_url },
+        { name = "DATABASE_NAME", value = "brainlens" },
+        { name = "HOST", value = "0.0.0.0" },
+        { name = "PORT", value = "8001" },
+        { name = "DEBUG", value = "true" },
+      ]
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          awslogs-group         = aws_cloudwatch_log_group.ecs.name
+          awslogs-region        = var.aws_region
+          awslogs-stream-prefix = "auth"
+        }
+      }
+    }
+  ])
+}
+
+resource "aws_ecs_task_definition" "annotation" {
+  family                   = "${local.name}-annotation"
+  cpu                      = "256"
+  memory                   = "512"
+  network_mode             = "awsvpc"
+  requires_compatibilities = ["FARGATE"]
+  execution_role_arn       = aws_iam_role.task_exec.arn
+  task_role_arn            = aws_iam_role.task_role.arn
+  runtime_platform {
+    operating_system_family = "LINUX"
+    cpu_architecture        = "X86_64"
+  }
+  container_definitions = jsonencode([
+    {
+      name      = "annotation-service"
+      image     = aws_ecr_repository.annotation.repository_url
+      essential = true
+      portMappings = [{ containerPort = 8003, hostPort = 8003 }]
+      environment = [
+        { name = "MONGODB_URL", value = var.mongo_url },
+        { name = "DATABASE_NAME", value = "brainlens" },
+        { name = "HOST", value = "0.0.0.0" },
+        { name = "PORT", value = "8003" },
+        { name = "DEBUG", value = "true" },
+      ]
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          awslogs-group         = aws_cloudwatch_log_group.ecs.name
+          awslogs-region        = var.aws_region
+          awslogs-stream-prefix = "annotation"
+        }
+      }
+    }
+  ])
+}
+
+resource "aws_ecs_task_definition" "colab" {
+  family                   = "${local.name}-colab"
+  cpu                      = "512"
+  memory                   = "1024"
+  network_mode             = "awsvpc"
+  requires_compatibilities = ["FARGATE"]
+  execution_role_arn       = aws_iam_role.task_exec.arn
+  task_role_arn            = aws_iam_role.task_role.arn
+  runtime_platform {
+    operating_system_family = "LINUX"
+    cpu_architecture        = "X86_64"
+  }
+  container_definitions = jsonencode([
+    {
+      name      = "colab-service"
+      image     = aws_ecr_repository.colab.repository_url
+      essential = true
+      portMappings = [{ containerPort = 8004, hostPort = 8004 }]
+      environment = [
+        { name = "MONGODB_URL", value = var.mongo_url },
+        { name = "DATABASE_NAME", value = "brainlens" },
+        { name = "HOST", value = "0.0.0.0" },
+        { name = "PORT", value = "8004" },
+        { name = "DEBUG", value = "true" },
+      ]
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          awslogs-group         = aws_cloudwatch_log_group.ecs.name
+          awslogs-region        = var.aws_region
+          awslogs-stream-prefix = "colab"
+        }
+      }
+    }
+  ])
+}
+
+# Services for auth, annotation, colab
+resource "aws_ecs_service" "auth" {
+  name            = "${local.name}-auth-svc"
+  cluster         = aws_ecs_cluster.this.id
+  task_definition = aws_ecs_task_definition.auth.arn
+  desired_count   = 1
+  launch_type     = "FARGATE"
+  network_configuration {
+    subnets         = [aws_subnet.public_a.id, aws_subnet.public_b.id]
+    security_groups = [aws_security_group.ecs_sg.id]
+    assign_public_ip = true
+  }
+  load_balancer {
+    target_group_arn = aws_lb_target_group.tg_auth.arn
+    container_name   = "auth-service"
+    container_port   = 8001
+  }
+}
+
+resource "aws_ecs_service" "annotation" {
+  name            = "${local.name}-ann-svc"
+  cluster         = aws_ecs_cluster.this.id
+  task_definition = aws_ecs_task_definition.annotation.arn
+  desired_count   = 1
+  launch_type     = "FARGATE"
+  network_configuration {
+    subnets         = [aws_subnet.public_a.id, aws_subnet.public_b.id]
+    security_groups = [aws_security_group.ecs_sg.id]
+    assign_public_ip = true
+  }
+  load_balancer {
+    target_group_arn = aws_lb_target_group.tg_annotation.arn
+    container_name   = "annotation-service"
+    container_port   = 8003
+  }
+}
+
+resource "aws_ecs_service" "colab" {
+  name            = "${local.name}-colab-svc"
+  cluster         = aws_ecs_cluster.this.id
+  task_definition = aws_ecs_task_definition.colab.arn
+  desired_count   = 1
+  launch_type     = "FARGATE"
+  network_configuration {
+    subnets         = [aws_subnet.public_a.id, aws_subnet.public_b.id]
+    security_groups = [aws_security_group.ecs_sg.id]
+    assign_public_ip = true
+  }
+  load_balancer {
+    target_group_arn = aws_lb_target_group.tg_colab.arn
+    container_name   = "colab-service"
+    container_port   = 8004
   }
 }
 
