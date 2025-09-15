@@ -32,9 +32,9 @@ def get_cors_origins():
     """Configuración dinámica de CORS según el entorno"""
     environment = os.getenv("ENVIRONMENT", "development")
     alb_dns = os.getenv("ALB_DNS_NAME", "")
-    
+
     if environment == "production" and alb_dns:
-        return [f"http://{alb_dns}"]
+        return [f"http://{alb_dns}", f"https://{alb_dns}"]
     else:
         return ["http://localhost:3000", "http://127.0.0.1:3000"]
 

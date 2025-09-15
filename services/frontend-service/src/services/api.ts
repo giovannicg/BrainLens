@@ -11,8 +11,32 @@ const getApiBaseUrl = () => {
   return process.env.REACT_APP_API_URL || runtimeOrigin;
 };
 
-const API_BASE_URL = getApiBaseUrl() + '/api/v1';
-const IMAGE_API_BASE_URL = getApiBaseUrl() + '/api/v1';
+// En producción, todos los servicios están detrás del ALB con routing por paths
+// En desarrollo, cada servicio tiene su propio puerto
+const getAuthApiUrl = () => {
+  if (process.env.NODE_ENV === 'production' && process.env.REACT_APP_ALB_DNS) {
+    return `http://${process.env.REACT_APP_ALB_DNS}/api/v1`;
+  }
+  return 'http://localhost:8001/api/v1';
+};
+
+const getImageApiUrl = () => {
+  if (process.env.NODE_ENV === 'production' && process.env.REACT_APP_ALB_DNS) {
+    return `http://${process.env.REACT_APP_ALB_DNS}/api/v1`;
+  }
+  return 'http://localhost:8002/api/v1';
+};
+
+const getAnnotationApiUrl = () => {
+  if (process.env.NODE_ENV === 'production' && process.env.REACT_APP_ALB_DNS) {
+    return `http://${process.env.REACT_APP_ALB_DNS}/api/v1`;
+  }
+  return 'http://localhost:8003/api/v1';
+};
+
+const API_BASE_URL = getAuthApiUrl();
+const IMAGE_API_BASE_URL = getImageApiUrl();
+const ANNOTATION_API_BASE_URL = getAnnotationApiUrl();
 
 export interface UserRegisterRequest {
   email: string;
@@ -185,8 +209,7 @@ class ApiService {
   constructor() {
     this.baseUrl = API_BASE_URL;
     this.imageApiUrl = IMAGE_API_BASE_URL;
-    // Annotation API usa la misma base URL que los otros servicios
-    this.annotationApiUrl = getApiBaseUrl();
+    this.annotationApiUrl = ANNOTATION_API_BASE_URL;
   }
 
   private async request<T>(
