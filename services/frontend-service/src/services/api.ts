@@ -14,23 +14,29 @@ const getApiBaseUrl = () => {
 // En producción, todos los servicios están detrás del ALB con routing por paths
 // En desarrollo, cada servicio tiene su propio puerto
 const getAuthApiUrl = () => {
-  if (process.env.NODE_ENV === 'production' && process.env.REACT_APP_ALB_DNS) {
-    return `http://${process.env.REACT_APP_ALB_DNS}/api/v1`;
+  // Si estamos en producción (no localhost), usar la URL actual
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    return `${window.location.protocol}//${window.location.host}/api/v1`;
   }
+  // En desarrollo, usar localhost
   return 'http://localhost:8001/api/v1';
 };
 
 const getImageApiUrl = () => {
-  if (process.env.NODE_ENV === 'production' && process.env.REACT_APP_ALB_DNS) {
-    return `http://${process.env.REACT_APP_ALB_DNS}/api/v1`;
+  // Si estamos en producción (no localhost), usar la URL actual
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    return `${window.location.protocol}//${window.location.host}/api/v1`;
   }
+  // En desarrollo, usar localhost
   return 'http://localhost:8002/api/v1';
 };
 
 const getAnnotationApiUrl = () => {
-  if (process.env.NODE_ENV === 'production' && process.env.REACT_APP_ALB_DNS) {
-    return `http://${process.env.REACT_APP_ALB_DNS}/api/v1`;
+  // Si estamos en producción (no localhost), usar la URL actual
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    return `${window.location.protocol}//${window.location.host}/api/v1`;
   }
+  // En desarrollo, usar localhost
   return 'http://localhost:8003/api/v1';
 };
 
