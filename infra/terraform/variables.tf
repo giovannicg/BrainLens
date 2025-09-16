@@ -38,13 +38,6 @@ variable "eks_node_count" {
 variable "eks_instance_type" {
   type        = string
   description = "EKS node instance type"
-  default     = "t2.micro"
+  default     = "t3.medium"
 }
-
-variable "mongodb_instance_class" {
-  type        = string
-  description = "DocumentDB instance class"
-  default     = "db.t3.medium"
-}
-
 
