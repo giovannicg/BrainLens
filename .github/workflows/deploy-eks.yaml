@@ -1,0 +1,161 @@
+name: Deploy to EKS
+
+on:
+  workflow_run:
+    workflows: ["Build and Push to ECR"]
+    types:
+      - completed
+  workflow_dispatch:
+
+env:
+  AWS_REGION: eu-north-1
+
+jobs:
+  deploy-to-eks:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    environment: production
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ vars.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Set EKS context
+      run: |
+        aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name brainlens-eks
+
+    - name: Verify cluster connection
+      run: |
+        kubectl cluster-info
+        kubectl get nodes | cat
+
+    - name: Compute ECR registry
+      run: |
+        echo "ECR_REGISTRY=${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com" >> $GITHUB_ENV
+
+    - name: Create/Update ECR imagePullSecret
+      run: |
+        aws ecr get-login-password --region ${{ env.AWS_REGION }} | \
+          kubectl create secret docker-registry ecr-pull-secret \
+            --namespace brainlens \
+            --docker-server=${{ env.ECR_REGISTRY }} \
+            --docker-username=AWS \
+            --docker-password-stdin \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+    - name: Apply base namespace and configuration
+      run: |
+        kubectl apply -f k8s/namespace.yaml
+        kubectl apply -f k8s/configmap.yaml
+        kubectl apply -f k8s/network-policies.yaml
+
+    - name: Apply application secrets (MongoDB/JWT)
+      env:
+        MONGODB_URI: ${{ secrets.MONGODB_URI }}
+        JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      run: |
+        if [ -z "$MONGODB_URI" ]; then echo "Missing secret MONGODB_URI"; exit 1; fi
+        if [ -z "$JWT_SECRET" ]; then echo "Missing secret JWT_SECRET"; exit 1; fi
+        kubectl -n brainlens create secret generic brainlens-secrets \
+          --from-literal=mongo-connection-string="$MONGODB_URI" \
+          --from-literal=jwt-secret="$JWT_SECRET" \
+          --dry-run=client -o yaml | kubectl apply -f -
+
+    - name: Deploy to EKS
+      run: |
+        # Replace ECR registry placeholder in manifests
+        sed -i "s|{{ECR_REGISTRY}}|${{ env.ECR_REGISTRY }}|g" k8s/*.yaml
+
+        echo "🚀 Deploying services..."
+        kubectl apply -f k8s/auth-service.yaml
+        kubectl apply -f k8s/image-service.yaml
+        kubectl apply -f k8s/annotation-service.yaml
+        kubectl apply -f k8s/colab-service.yaml
+        kubectl apply -f k8s/frontend-service.yaml
+        kubectl apply -f k8s/ingress.yaml
+
+        echo "⏳ Waiting for deployments..."
+        kubectl rollout status deployment/auth-service -n brainlens --timeout=600s | cat
+        kubectl rollout status deployment/image-service -n brainlens --timeout=600s | cat
+        kubectl rollout status deployment/annotation-service -n brainlens --timeout=600s | cat
+        kubectl rollout status deployment/colab-service -n brainlens --timeout=600s | cat
+        kubectl rollout status deployment/frontend-service -n brainlens --timeout=600s | cat
+
+    - name: Run health checks
+      run: |
+        echo "🔍 Running health checks..."
+        sleep 30
+
+        AUTH_POD=$(kubectl get pod -n brainlens -l app=auth-service -o jsonpath='{.items[0].metadata.name}')
+        kubectl exec -n brainlens "$AUTH_POD" -- curl -sf http://localhost:8001/api/v1/auth/health
+
+        IMG_POD=$(kubectl get pod -n brainlens -l app=image-service -o jsonpath='{.items[0].metadata.name}')
+        kubectl exec -n brainlens "$IMG_POD" -- curl -sf http://localhost:8002/api/v1/images/health
+
+        ANN_POD=$(kubectl get pod -n brainlens -l app=annotation-service -o jsonpath='{.items[0].metadata.name}')
+        kubectl exec -n brainlens "$ANN_POD" -- curl -sf http://localhost:8003/api/v1/annotations/health
+
+        COLAB_POD=$(kubectl get pod -n brainlens -l app=colab-service -o jsonpath='{.items[0].metadata.name}')
+        kubectl exec -n brainlens "$COLAB_POD" -- curl -sf http://localhost:8004/api/v1/colab/health
+
+        echo "✅ All services are healthy!"
+
+    - name: Get service status
+      if: always()
+      run: |
+        echo "📊 Service Status:"
+        kubectl get pods -n brainlens | cat
+        kubectl get services -n brainlens | cat
+        kubectl get ingress -n brainlens | cat
+
+    - name: Notify deployment success
+      if: success()
+      run: |
+        echo "✅ Deployment to EKS completed successfully!"
+        LB_URL=$(kubectl get ingress brainlens-ingress -n brainlens -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null)
+        if [ -n "$LB_URL" ]; then
+          echo "🌍 Application available at: http://$LB_URL"
+        else
+          echo "⏳ LoadBalancer URL will be available soon"
+          echo "   Run: kubectl get ingress brainlens-ingress -n brainlens"
+        fi
+        echo ""
+        echo "📋 Deployment Summary:"
+        kubectl get pods -n brainlens --no-headers | wc -l | xargs echo "Total pods:"
+        kubectl get services -n brainlens --no-headers | wc -l | xargs echo "Total services:"
+
+    - name: Notify deployment failure
+      if: failure()
+      run: |
+        echo "❌ Deployment to EKS failed!"
+        echo ""
+        echo "🔍 Debugging information:"
+        kubectl get pods -n brainlens | cat
+        echo ""
+        echo "📋 Recent logs (last 5m):"
+        for app in auth-service image-service annotation-service colab-service frontend-service; do
+          echo "---- $app ----"
+          POD=$(kubectl get pod -n brainlens -l app=$app -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+          if [ -n "$POD" ]; then
+            kubectl logs -n brainlens "$POD" --since=5m --tail=100 | tail -n 100 || true
+          else
+            echo "No pod found"
+          fi
+        done
+        echo ""
+        echo "🚨 Please check the logs above for error details"
+
+    - name: Cleanup old resources (optional)
+      if: success()
+      run: |
+        kubectl delete jobs -n brainlens --field-selector status.successful=1 --ignore-not-found=true
+        kubectl delete pods -n brainlens --field-selector status.phase=Failed --ignore-not-found=true
+
+

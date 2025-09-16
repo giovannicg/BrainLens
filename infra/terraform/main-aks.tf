@@ -82,7 +82,7 @@ resource "aws_route_table_association" "b" {
 resource "aws_eks_cluster" "brainlens" {
   name     = "${local.name}-eks"
   role_arn = aws_iam_role.eks_cluster.arn
-  version  = "1.28"
+  version  = "1.30"
 
   vpc_config {
     subnet_ids = [aws_subnet.public_a.id, aws_subnet.public_b.id]

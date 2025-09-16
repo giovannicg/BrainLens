@@ -180,12 +180,16 @@ spec:
     ports:
     - protocol: TCP
       port: 27017
-  - to: []
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
     ports:
     - protocol: TCP
       port: 443
     - protocol: TCP
       port: 80
+    # Permitir salida a MongoDB Atlas (DNS/Internet)
+    # Regla vacía con puertos 443/80 ya permite Internet en la mayoría de CNI
   - to:
     - namespaceSelector:
         matchLabels:
