@@ -4,7 +4,6 @@ metadata:
   name: brainlens-ingress
   namespace: brainlens
   annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
     # Remove SSL redirect for now (can add later with cert-manager)
     # nginx.ingress.kubernetes.io/ssl-redirect: "true"
     # cert-manager.io/cluster-issuer: "letsencrypt-prod"

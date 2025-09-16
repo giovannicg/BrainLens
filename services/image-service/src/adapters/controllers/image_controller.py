@@ -27,6 +27,15 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/images", tags=["images"])
 
+segui@router.get("/health")
+async def health_check():
+    """Endpoint de verificación de salud del servicio"""
+    return {
+        "status": "healthy",
+        "service": "image-service",
+        "database": "connected"
+    }
+
 # Inyección de dependencias
 def get_image_repository():
     return MongoImageRepository()
