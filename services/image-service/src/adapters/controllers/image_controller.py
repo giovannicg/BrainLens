@@ -276,20 +276,25 @@ async def get_processing_status(
         processing_started = None
         processing_completed = None
         prediction = None
-        
+
         if image.metadata:
             if 'processing_started' in image.metadata:
                 processing_started = image.metadata['processing_started']
             if 'processing_completed' in image.metadata:
                 processing_completed = image.metadata['processing_completed']
-            if 'tumor_analysis' in image.metadata:
-                tumor_data = image.metadata['tumor_analysis']
+            if 'prediction' in image.metadata:
+                pred_data = image.metadata['prediction']
+                # Normalizar datos de predicción del colab-service
+                pred_label = str(pred_data.get('prediction', ''))
+                # Determinar si es tumor basado en el label
+                import re
+                es_tumor = bool(re.search(r'tumor|sí|si|true|1', pred_label, re.IGNORECASE)) if isinstance(pred_label, str) else bool(pred_label)
                 prediction = TumorPredictionResult(
-                    es_tumor=tumor_data['es_tumor'],
-                    clase_predicha=tumor_data['clase_predicha'],
-                    confianza=tumor_data['confianza'],
-                    probabilidades=tumor_data['probabilidades'],
-                    recomendacion=tumor_data['recomendacion']
+                    es_tumor=es_tumor,
+                    clase_predicha=pred_label,
+                    confianza=float(pred_data.get('mean_score', 0)),
+                    probabilidades={},  # El colab-service no devuelve probabilidades detalladas
+                    recomendacion=''  # El colab-service no incluye recomendación
                 )
         
         # Generar mensaje según el estado

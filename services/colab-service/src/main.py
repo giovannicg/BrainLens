@@ -1,14 +1,10 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional, Dict, Any, List
+from typing import Optional
 import os
 import logging
-from datetime import datetime
-from PIL import Image
-import io
-import numpy as np
-import tensorflow as tf
+import httpx
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -24,7 +20,7 @@ def get_cors_origins():
     else:
         return ["http://localhost:3000", "http://127.0.0.1:3000"]
 
-app = FastAPI(title="BrainLens Local Prediction Service", version="1.0.0")
+app = FastAPI(title="BrainLens Colab Proxy Service", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=get_cors_origins(),
@@ -46,82 +42,90 @@ class PredictionResponse(BaseModel):
     error: Optional[str] = None
     processing_time: Optional[float] = None
 
-MODELS_DIR = '/app/modelo_multiclase'
-MODEL_PATHS = [
-    os.path.join(MODELS_DIR, fname)
-    for fname in os.listdir(MODELS_DIR)
-    if fname.endswith('.keras')
-]
-MODELS = []
-for path in MODEL_PATHS:
-    try:
-        model = tf.keras.models.load_model(path)
-        # Solo usar modelos con input_shape[-1] == 3 (RGB)
-        input_shape = model.input_shape
-        if len(input_shape) == 4 and input_shape[-1] == 3:
-            MODELS.append(model)
-            logging.info(f"Modelo cargado: {path}")
-        else:
-            logging.warning(f"Modelo ignorado por input_shape incompatible: {path} (input_shape={input_shape})")
-    except Exception as e:
-        logging.error(f"Error cargando modelo {path}: {e}")
-
 
 @app.post("/predict", response_model=PredictionResponse)
 async def predict_tumor(image: UploadFile = File(...)):
-    """Recibe imagen, realiza predicción con varios modelos y devuelve la media (sí/no)."""
-    import time
+    """Recibe imagen, realiza predicción con varios modelos y devuelve la moda.
+
+    Soporta modelos binarios (sigmoid) y multiclase (softmax). La clase final es la moda
+    de las predicciones por modelo. En empate, se elige la clase con mayor media de
+    probabilidad entre las empatadas; si persiste empate, la de menor índice.
+    """
+    import time, base64, traceback, asyncio
     start_time = time.time()
-    if not MODELS:
-        raise HTTPException(status_code=500, detail="No hay modelos cargados")
+    # Siempre usar Colab; si no está configurado, error
+    colab_url = os.getenv("COLAB_PREDICT_URL", "").strip()
+    if not colab_url:
+        raise HTTPException(status_code=500, detail="COLAB_PREDICT_URL no está configurado")
     try:
         image_bytes = await image.read()
-        logger.info("/predict | filename=%s content_type=%s bytes=%s",
+        logger.info("/predict (proxy Colab) | filename=%s content_type=%s bytes=%s",
                     getattr(image, "filename", None), getattr(image, "content_type", None), len(image_bytes))
-        try:
-            pil_img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Imagen inválida: {str(e)}")
-
-
-        # Realizar predicción con cada modelo, adaptando el formato de entrada
-        scores: List[float] = []
-        for model in MODELS:
-            input_shape = model.input_shape
-            # input_shape: (None, alto, ancho, canales)
-            if len(input_shape) == 4:
-                _, h, w, c = input_shape
-            else:
-                h, w, c = 224, 224, 3
-
-            img_model = pil_img.resize((w, h))
-            if c == 1:
-                img_model = img_model.convert("L")
-            else:
-                img_model = img_model.convert("RGB")
-            arr_model = np.array(img_model) / 255.0
-            if c == 1 and arr_model.ndim == 2:
-                arr_model = np.expand_dims(arr_model, axis=-1)
-            arr_model = np.expand_dims(arr_model, axis=0)
-
+        b64 = base64.b64encode(image_bytes).decode("utf-8")
+        headers = {"ngrok-skip-browser-warning": "true", "Content-Type": "application/json"}
+        last_err = None
+        for attempt in range(1, 3):
             try:
-                pred = model.predict(arr_model)
-                score = float(pred.flatten()[0])
-                scores.append(score)
+                async with httpx.AsyncClient(timeout=120) as client:
+                    resp = await client.post(colab_url, json={"image_data": b64}, headers=headers)
+                if resp.status_code >= 400:
+                    logger.error("Colab respondió %s: %s", resp.status_code, resp.text[:500])
+                    raise HTTPException(status_code=resp.status_code, detail=f"Colab error: {resp.text}")
+                break
             except Exception as e:
-                logger.error(f"Error en predicción con modelo {model.name}: {e}")
-
-
-        mean_score = float(np.mean(scores))
-        result = "sí" if mean_score >= 0.5 else "no"
+                last_err = e
+                logger.error("Intento %s a Colab falló: %r", attempt, e)
+                if attempt < 2:
+                    await asyncio.sleep(1.5)
+        if last_err and 'resp' not in locals():
+            raise last_err
+        data = resp.json()
+        logger.info("/predict Colab resp: %s", str(data)[:500])
         elapsed = time.time() - start_time
-        logger.info(f"Predicción: scores={scores} mean={mean_score} resultado={result}")
-        return PredictionResponse(status="success", prediction=result, mean_score=mean_score, processing_time=elapsed)
+        return PredictionResponse(
+            status=str(data.get("status", "success")),
+            prediction=data.get("prediction"),
+            mean_score=float(data.get("mean_score")) if data.get("mean_score") is not None else None,
+            processing_time=float(data.get("processing_time", elapsed)),
+            error=data.get("error")
+        )
     except HTTPException:
         raise
     except Exception as e:
-        logger.error("Error en /predict: %s", str(e))
-        return PredictionResponse(status="error", error=str(e))
+        logger.error("Fallo reenviando a Colab: %r\n%s", e, traceback.format_exc())
+        raise HTTPException(status_code=502, detail=f"Error comunicando con Colab: {str(e)}")
+
+
+@app.post("/predict/raw")
+async def predict_tumor_raw(image: UploadFile = File(...)):
+    """Proxy a Colab /predict-raw devolviendo detalle de votos y per-model."""
+    colab_raw_url = os.getenv("COLAB_PREDICT_RAW_URL", "").strip()
+    if not colab_raw_url:
+        base = os.getenv("COLAB_PREDICT_URL", "").strip()
+        if not base:
+            raise HTTPException(status_code=500, detail="COLAB_PREDICT_URL no está configurado")
+        if base.endswith("/predict"):
+            colab_raw_url = base + "-raw"
+        else:
+            colab_raw_url = base.rstrip("/") + "/predict-raw"
+
+    try:
+        image_bytes = await image.read()
+        b64 = base64.b64encode(image_bytes).decode("utf-8")
+        headers = {"ngrok-skip-browser-warning": "true", "Content-Type": "application/json"}
+        async with httpx.AsyncClient(timeout=120) as client:
+            resp = await client.post(colab_raw_url, json={"image_data": b64}, headers=headers)
+        if resp.status_code >= 400:
+            logger.error("Colab (raw) respondió %s: %s", resp.status_code, resp.text[:500])
+            raise HTTPException(status_code=resp.status_code, detail=f"Colab error: {resp.text}")
+        data = resp.json()
+        logger.info("/predict/raw Colab resp: %s", str(data)[:500])
+        return data
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Fallo reenviando a Colab (raw): %s", str(e))
+        raise HTTPException(status_code=502, detail=f"Error comunicando con Colab (raw): {str(e)}")
 
 
 if __name__ == "__main__":
