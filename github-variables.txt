@@ -1,0 +1,27 @@
+# GitHub Repository Variables for BrainLens CI/CD
+# Copy these values to: GitHub → Settings → Secrets and variables → Actions → Variables
+
+# AWS Credentials (Required)
+AWS_ACCESS_KEY_ID=your_aws_access_key_here
+AWS_SECRET_ACCESS_KEY=your_aws_secret_key_here
+AWS_ACCOUNT_ID=328764941686
+AWS_REGION=eu-north-1
+
+# EKS Information
+EKS_CLUSTER_NAME=brainlens-eks
+EKS_CLUSTER_ENDPOINT=https://7E498AE1A0F2D9DC61E53E8E1FD04088.gr7.eu-north-1.eks.amazonaws.com
+
+# S3 Bucket
+S3_BUCKET_NAME=brainlens-storage-v8q35chb
+
+# ECR Repository URIs
+ECR_FRONTEND_URI=328764941686.dkr.ecr.eu-north-1.amazonaws.com/brainlens-frontend
+ECR_AUTH_URI=328764941686.dkr.ecr.eu-north-1.amazonaws.com/brainlens-auth
+ECR_IMAGE_URI=328764941686.dkr.ecr.eu-north-1.amazonaws.com/brainlens-image
+ECR_ANNOTATION_URI=328764941686.dkr.ecr.eu-north-1.amazonaws.com/brainlens-annotation
+ECR_COLAB_URI=328764941686.dkr.ecr.eu-north-1.amazonaws.com/brainlens-colab
+
+# MongoDB Atlas (configured)
+MONGODB_CONNECTION_STRING=mongodb+srv://dbaws:Loannes21@dbtest.hlqdt.mongodb.net/?retryWrites=true&w=majority&appName=DBTest
+MONGODB_USERNAME=dbaws
+MONGODB_PASSWORD=Loannes21

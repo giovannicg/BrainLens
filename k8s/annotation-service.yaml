@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: annotation-service
+  namespace: brainlens
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: annotation-service
+  template:
+    metadata:
+      labels:
+        app: annotation-service
+    spec:
+      containers:
+      - name: annotation-service
+        image: "{{ECR_REGISTRY}}/brainlens/annotation-service:latest"
+        ports:
+        - containerPort: 8003
+        env:
+        - name: MONGODB_URL
+          value: "mongodb://$(MONGO_USERNAME):$(MONGO_PASSWORD)@mongodb.brainlens.svc.cluster.local:27017/$(DATABASE_NAME)"
+        - name: HOST
+          value: "0.0.0.0"
+        - name: PORT
+          value: "8003"
+        envFrom:
+        - configMapRef:
+            name: brainlens-config
+        - secretRef:
+            name: brainlens-secrets
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /api/v1/annotations/health
+            port: 8003
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /api/v1/annotations/health
+            port: 8003
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: annotation-service
+  namespace: brainlens
+spec:
+  selector:
+    app: annotation-service
+  ports:
+  - port: 8003
+    targetPort: 8003
+  type: ClusterIP

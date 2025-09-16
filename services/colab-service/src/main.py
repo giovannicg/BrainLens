@@ -33,6 +33,11 @@ app.add_middleware(
 async def health():
     return {"status": "ok", "service": "colab"}
 
+# Health endpoint for EKS ingress compatibility
+@app.get("/api/v1/colab/health")
+async def health_api_v1():
+    return {"status": "ok", "service": "colab"}
+
 
 
 class PredictionResponse(BaseModel):

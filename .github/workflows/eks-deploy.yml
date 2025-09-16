@@ -1,0 +1,145 @@
+name: Deploy to EKS
+
+on:
+  workflow_run:
+    workflows: ["Build and Push to ECR"]
+    types:
+      - completed
+  workflow_dispatch:
+
+env:
+  AWS_REGION: eu-north-1
+
+jobs:
+  deploy-to-eks:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    environment: production
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ vars.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Set EKS context
+      run: |
+        aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name brainlens-eks
+
+    - name: Verify cluster connection
+      run: |
+        kubectl cluster-info
+        kubectl get nodes
+
+    - name: Set ECR registry environment variable
+      run: |
+        echo "ECR_REGISTRY=${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com" >> $GITHUB_ENV
+
+    - name: Deploy to EKS
+      run: |
+        # Update Kubernetes manifests with ECR registry
+        sed -i "s|{{ECR_REGISTRY}}|${{ env.ECR_REGISTRY }}|g" k8s/*.yaml
+
+        # Deploy namespace first
+        kubectl apply -f k8s/namespace.yaml
+
+        # Deploy ConfigMaps and Secrets
+        kubectl apply -f k8s/configmap.yaml
+        kubectl apply -f k8s/secret.yaml
+
+        # MongoDB Atlas is used (external service - no deployment needed)
+        echo "🗄️ Using MongoDB Atlas (external service)"
+
+        # Deploy services
+        echo "🚀 Deploying services..."
+        kubectl apply -f k8s/auth-service.yaml
+        kubectl apply -f k8s/image-service.yaml
+        kubectl apply -f k8s/annotation-service.yaml
+        kubectl apply -f k8s/colab-service.yaml
+        kubectl apply -f k8s/frontend-service.yaml
+
+        # Deploy ingress
+        kubectl apply -f k8s/ingress.yaml
+
+        # Wait for deployments
+        echo "⏳ Waiting for deployments..."
+        kubectl rollout status deployment/auth-service -n brainlens --timeout=600s
+        kubectl rollout status deployment/image-service -n brainlens --timeout=600s
+        kubectl rollout status deployment/annotation-service -n brainlens --timeout=600s
+        kubectl rollout status deployment/colab-service -n brainlens --timeout=600s
+        kubectl rollout status deployment/frontend-service -n brainlens --timeout=600s
+
+    - name: Run health checks
+      run: |
+        echo "🔍 Running health checks..."
+
+        # Wait for services to be ready
+        sleep 30
+
+        # Check service health endpoints
+        echo "Checking auth service..."
+        kubectl exec -n brainlens deployment/auth-service -- curl -f http://localhost:8001/api/v1/auth/health || exit 1
+
+        echo "Checking image service..."
+        kubectl exec -n brainlens deployment/image-service -- curl -f http://localhost:8002/api/v1/images/health || exit 1
+
+        echo "Checking annotation service..."
+        kubectl exec -n brainlens deployment/annotation-service -- curl -f http://localhost:8003/api/v1/annotations/health || exit 1
+
+        echo "Checking colab service..."
+        kubectl exec -n brainlens deployment/colab-service -- curl -f http://localhost:8004/health || exit 1
+
+        echo "✅ All services are healthy!"
+
+    - name: Get service status
+      run: |
+        echo "📊 Service Status:"
+        kubectl get pods -n brainlens
+        kubectl get services -n brainlens
+        kubectl get ingress -n brainlens
+
+    - name: Notify deployment success
+      if: success()
+      run: |
+        echo "✅ Deployment to EKS completed successfully!"
+
+        # Get LoadBalancer URL
+        LB_URL=$(kubectl get ingress brainlens-ingress -n brainlens -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null)
+        if [ -n "$LB_URL" ]; then
+          echo "🌍 Application available at: http://$LB_URL"
+        else
+          echo "⏳ LoadBalancer URL will be available soon"
+          echo "   Run: kubectl get ingress brainlens-ingress -n brainlens"
+        fi
+
+        echo ""
+        echo "📋 Deployment Summary:"
+        kubectl get pods -n brainlens --no-headers | wc -l | xargs echo "Total pods:"
+        kubectl get services -n brainlens --no-headers | wc -l | xargs echo "Total services:"
+
+    - name: Notify deployment failure
+      if: failure()
+      run: |
+        echo "❌ Deployment to EKS failed!"
+        echo ""
+        echo "🔍 Debugging information:"
+        kubectl get pods -n brainlens
+        echo ""
+        echo "📋 Recent logs:"
+        kubectl logs -n brainlens --selector=app --tail=50 --since=5m
+        echo ""
+        echo "🚨 Please check the logs above for error details"
+
+    - name: Cleanup old resources (optional)
+      if: success()
+      run: |
+        # Remove completed jobs older than 7 days
+        kubectl delete jobs -n brainlens --field-selector status.successful=1 --ignore-not-found=true
+
+        # Remove failed pods older than 1 hour
+        kubectl delete pods -n brainlens --field-selector status.phase=Failed --ignore-not-found=true

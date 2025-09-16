@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service
+  namespace: brainlens
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: auth-service
+  template:
+    metadata:
+      labels:
+        app: auth-service
+    spec:
+      containers:
+      - name: auth-service
+        image: "{{ECR_REGISTRY}}/brainlens/auth-service:latest"
+        ports:
+        - containerPort: 8001
+        env:
+        - name: MONGODB_URL
+          value: "mongodb://$(MONGO_USERNAME):$(MONGO_PASSWORD)@mongodb.brainlens.svc.cluster.local:27017/$(DATABASE_NAME)"
+        - name: HOST
+          value: "0.0.0.0"
+        - name: PORT
+          value: "8001"
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: brainlens-secrets
+              key: jwt-secret
+        envFrom:
+        - configMapRef:
+            name: brainlens-config
+        - secretRef:
+            name: brainlens-secrets
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /api/v1/auth/health
+            port: 8001
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /api/v1/auth/health
+            port: 8001
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth-service
+  namespace: brainlens
+spec:
+  selector:
+    app: auth-service
+  ports:
+  - port: 8001
+    targetPort: 8001
+  type: ClusterIP

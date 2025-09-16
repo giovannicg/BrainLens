@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: colab-service
+  namespace: brainlens
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: colab-service
+  template:
+    metadata:
+      labels:
+        app: colab-service
+    spec:
+      containers:
+      - name: colab-service
+        image: "{{ECR_REGISTRY}}/brainlens/colab-service:latest"
+        ports:
+        - containerPort: 8004
+        env:
+        - name: MONGODB_URL
+          value: "mongodb://$(MONGO_USERNAME):$(MONGO_PASSWORD)@mongodb.brainlens.svc.cluster.local:27017/$(DATABASE_NAME)"
+        - name: HOST
+          value: "0.0.0.0"
+        - name: PORT
+          value: "8004"
+        envFrom:
+        - configMapRef:
+            name: brainlens-config
+        - secretRef:
+            name: brainlens-secrets
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /api/v1/colab/health
+            port: 8004
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /api/v1/colab/health
+            port: 8004
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: colab-service
+  namespace: brainlens
+spec:
+  selector:
+    app: colab-service
+  ports:
+  - port: 8004
+    targetPort: 8004
+  type: ClusterIP

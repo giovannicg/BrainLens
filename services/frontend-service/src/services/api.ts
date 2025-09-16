@@ -43,7 +43,7 @@ const getAnnotationApiUrl = () => {
 // Colab proxy (desarrollo en 8004; en prod mismo host /api/v1)
 const getColabApiUrl = () => {
   if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-    return `${window.location.protocol}//${window.location.host}`; // detrás del ALB con routing
+    return `${window.location.protocol}//${window.location.host}/api/v1/colab`; // detrás del ALB con routing
   }
   return 'http://localhost:8004';
 };

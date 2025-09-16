@@ -72,6 +72,27 @@ docker-compose up -d
 - Image Service: http://localhost:8002
 - Annotation Service: http://localhost:8003
 
+### Despliegue en AWS EKS (Sin Dominio Personalizado)
+
+Si despliegas en AWS EKS sin un dominio personalizado:
+
+1. **Después del despliegue**, obtén la URL del LoadBalancer:
+```bash
+kubectl get ingress brainlens-ingress -n brainlens
+```
+
+2. **Accede a tu aplicación** usando la URL del LoadBalancer:
+```
+http://YOUR_LOADBALANCER_URL
+```
+
+3. **URLs de la API**:
+```
+http://YOUR_LOADBALANCER_URL/api/v1/auth
+http://YOUR_LOADBALANCER_URL/api/v1/images
+http://YOUR_LOADBALANCER_URL/api/v1/annotations
+```
+
 ### Desarrollo Local
 
 Para desarrollo local del frontend:
