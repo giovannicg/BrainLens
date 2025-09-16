@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/images", tags=["images"])
 
-segui@router.get("/health")
+@router.get("/health")
 async def health_check():
     """Endpoint de verificación de salud del servicio"""
     return {
