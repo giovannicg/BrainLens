@@ -18,7 +18,7 @@ data:
   COLAB_SERVICE_URL: "http://colab-service.brainlens.svc.cluster.local:8004"
 
   # MongoDB Atlas Configuration
-  MONGODB_URL: ""  # Will be set from secret (MongoDB Atlas connection string)
+  # MONGODB_URL is provided via Secret to avoid accidental overrides
 
   # Colab external URLs (update these when ngrok URL changes)
   COLAB_PREDICT_URL: "https://4ae51406e065.ngrok-free.app/predict"
