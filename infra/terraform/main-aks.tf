@@ -2,6 +2,13 @@
 # AWS Kubernetes Service setup
 
 terraform {
+  backend "s3" {
+    bucket         = "brainlens-terraform-state-1758055280"  # Reemplaza con tu bucket
+    key            = "brainlens/terraform.tfstate"
+    region         = "eu-north-1"
+    dynamodb_table = "brainlens-terraform-locks"
+    encrypt        = true
+  }
   required_providers {
     aws = {
       source  = "hashicorp/aws"
@@ -112,7 +119,7 @@ resource "aws_eks_node_group" "brainlens" {
   }
 
   # Usar un tipo disponible y económico
-  instance_types = ["t3.small"]
+  instance_types = ["t3.medium"]
   capacity_type  = "SPOT"
 
   depends_on = [
