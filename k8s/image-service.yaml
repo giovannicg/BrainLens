@@ -68,13 +68,13 @@ spec:
       volumes:
       - name: image-storage
         persistentVolumeClaim:
-          claimName: image-storage-pvc
+          claimName: image-storage-pvc-gp3
 
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: image-storage-pvc
+  name: image-storage-pvc-gp3
   namespace: brainlens
 spec:
   accessModes:
