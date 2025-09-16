@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
       - name: image-service
-        image: "{{ECR_REGISTRY}}/brainlens/image-service:latest"
+        image: "{{ECR_REGISTRY}}/brainlens-image:latest"
         ports:
         - containerPort: 8002
         env:

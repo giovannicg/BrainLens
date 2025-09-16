@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
       - name: auth-service
-        image: "{{ECR_REGISTRY}}/brainlens/auth-service:latest"
+        image: "{{ECR_REGISTRY}}/brainlens-auth:latest"
         ports:
         - containerPort: 8001
         env:
