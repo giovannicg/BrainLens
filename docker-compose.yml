@@ -134,6 +134,10 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"
+    volumes:
+      - ./services/frontend-service/src:/app/src
+      - ./services/frontend-service/public:/app/public
+      - /app/node_modules
     depends_on:
       - auth-service
     networks:

@@ -194,25 +194,29 @@
 }
 
 .image-actions {
-  display: grid;
-  /* Esto crea 3 columnas de igual tamaño */
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px; /* Espacio entre los botones */
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+  justify-content: flex-end;
+  margin-top: 4px;
 }
 
 .action-button {
-  flex: 1;
-  padding: 10px 15px;
+  padding: 3px 8px;
   border: none;
-  border-radius: 6px;
-  font-size: 0.9rem;
+  border-radius: 4px;
+  font-size: 0.78rem;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
+  gap: 3px;
+  min-width: 0;
+  white-space: nowrap;
+  height: 28px;
+  line-height: 1;
 }
 
 .action-button.annotate {

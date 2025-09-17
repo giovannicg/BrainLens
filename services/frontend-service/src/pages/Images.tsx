@@ -47,6 +47,7 @@ const Images: React.FC = () => {
       alert('Error al eliminar la imagen');
     }
   };
+  
   const formatFileSize = (bytes: number): string => {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
@@ -126,7 +127,9 @@ const Images: React.FC = () => {
               </div>
               
               <div className="image-info">
-                <h4>{image.original_filename}</h4>
+                <h4>
+                  {image.original_filename}
+                </h4>
                 <div className="image-details">
                   <span className="detail-item">
                     <strong>Tamaño:</strong> {formatFileSize(image.file_size)}
@@ -149,11 +152,36 @@ const Images: React.FC = () => {
                     <strong>Subida:</strong> {formatDate(image.upload_date)}
                   </span>
                 </div>
-              </div>
-              <div className="card-footer">
-                <div className="image-actions">
-                  <button onClick={() => navigate(`/annotate/${image.id}`)} className="action-button annotate">✏️ Anotar</button>
-                  <button onClick={() => handleDeleteImage(image.id)} className="action-button delete">🗑️ Eliminar</button>
+                
+                <div style={{ 
+                  display: 'flex', 
+                  gap: '4px', 
+                  justifyContent: 'center', 
+                  marginTop: '15px',
+                  padding: '0 10px'
+                }}>
+                  <button 
+                    onClick={() => navigate(`/annotate/${image.id}`)} 
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = '#5a6fd8';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = '#667eea';
+                    }}
+                  >
+                    ✏️
+                  </button>
+                  <button 
+                    onClick={() => handleDeleteImage(image.id)} 
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = '#c0392b';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = '#e74c3c';
+                    }}
+                  >
+                    🗑️
+                  </button>
                 </div>
               </div>
             </div>
@@ -164,4 +192,4 @@ const Images: React.FC = () => {
   );
 };
 
-export default Images; 
+export default Images;
