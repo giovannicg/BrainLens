@@ -17,7 +17,7 @@ spec:
       - name: ecr-pull-secret
       containers:
       - name: image-service
-        image: "{{ECR_REGISTRY}}/brainlens-image:latest"
+        image: "328764941686.dkr.ecr.eu-north-1.amazonaws.com/brainlens-image:latest"
         ports:
         - containerPort: 8002
         env:
@@ -35,6 +35,16 @@ spec:
           value: "0.0.0.0"
         - name: PORT
           value: "8002"
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: aws-credentials
+              key: aws-access-key-id
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: aws-credentials
+              key: aws-secret-access-key
         envFrom:
         - configMapRef:
             name: brainlens-config
@@ -45,11 +55,11 @@ spec:
           mountPath: /app/storage
         resources:
           requests:
-            memory: "512Mi"
-            cpu: "200m"
+            memory: "256Mi"
+            cpu: "100m"
           limits:
-            memory: "1Gi"
-            cpu: "500m"
+            memory: "512Mi"
+            cpu: "300m"
         livenessProbe:
           httpGet:
             path: /api/v1/images/health

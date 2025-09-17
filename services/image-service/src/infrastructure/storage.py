@@ -6,6 +6,8 @@ from typing import Optional, Tuple
 from PIL import Image as PILImage
 import io
 from dotenv import load_dotenv
+import boto3
+from botocore.client import Config as BotoConfig
 
 load_dotenv()
 
@@ -13,6 +15,17 @@ class StorageService:
     def __init__(self):
         self.storage_type = os.getenv("STORAGE_TYPE", "local")
         self.local_storage_path = os.getenv("LOCAL_STORAGE_PATH", "./storage")
+        # S3
+        self.s3_bucket = os.getenv("S3_BUCKET", "")
+        self.s3_prefix = os.getenv("S3_PREFIX", "").strip()
+        if self.s3_prefix and not self.s3_prefix.endswith("/"):
+            self.s3_prefix += "/"
+        if self.storage_type == "s3":
+            self.s3_client = boto3.client(
+                "s3",
+                region_name=os.getenv("AWS_REGION", os.getenv("AWS_DEFAULT_REGION", None)),
+                config=BotoConfig(signature_version="s3v4")
+            )
         self._ensure_storage_directory()
     
     def _ensure_storage_directory(self):
@@ -32,19 +45,31 @@ class StorageService:
         unique_filename = f"{uuid.uuid4()}{file_extension}"
         logger.info(f"[STORAGE] Nombre único generado: {unique_filename}")
 
-        # Crear directorio para el usuario si no existe
-        user_dir = os.path.join(self.local_storage_path, "images", user_id)
-        os.makedirs(user_dir, exist_ok=True)
-        logger.info(f"[STORAGE] Directorio de usuario asegurado: {user_dir}")
+        if self.storage_type == "s3":
+            key = f"{self.s3_prefix}images/{user_id}/{unique_filename}"
+            content_type = self._get_mime_type(file_extension)
+            self.s3_client.put_object(
+                Bucket=self.s3_bucket,
+                Key=key,
+                Body=file_content,
+                ContentType=content_type
+            )
+            file_path = f"s3://{self.s3_bucket}/{key}"
+            logger.info(f"[STORAGE] Archivo subido a S3: {file_path}")
+        else:
+            # Crear directorio para el usuario si no existe
+            user_dir = os.path.join(self.local_storage_path, "images", user_id)
+            os.makedirs(user_dir, exist_ok=True)
+            logger.info(f"[STORAGE] Directorio de usuario asegurado: {user_dir}")
 
-        # Ruta completa del archivo
-        file_path = os.path.join(user_dir, unique_filename)
-        logger.info(f"[STORAGE] Ruta completa del archivo: {file_path}")
+            # Ruta completa del archivo
+            file_path = os.path.join(user_dir, unique_filename)
+            logger.info(f"[STORAGE] Ruta completa del archivo: {file_path}")
 
-        # Guardar archivo
-        async with aiofiles.open(file_path, 'wb') as f:
-            await f.write(file_content)
-        logger.info(f"[STORAGE] Archivo guardado en disco: {file_path}")
+            # Guardar archivo
+            async with aiofiles.open(file_path, 'wb') as f:
+                await f.write(file_content)
+            logger.info(f"[STORAGE] Archivo guardado en disco: {file_path}")
 
         # Obtener información del archivo
         file_size = len(file_content)
@@ -71,7 +96,11 @@ class StorageService:
             "mime_type": mime_type,
             "width": width,
             "height": height,
-            "metadata": metadata
+            "metadata": {
+                **metadata,
+                **({"s3_bucket": self.s3_bucket} if self.storage_type == "s3" else {}),
+                **({"s3_prefix": self.s3_prefix} if self.storage_type == "s3" else {}),
+            }
         }
     
     async def _get_image_dimensions(self, file_content: bytes) -> Tuple[Optional[int], Optional[int]]:
@@ -98,6 +127,11 @@ class StorageService:
     async def delete_image(self, file_path: str) -> bool:
         """Eliminar una imagen del almacenamiento"""
         try:
+            if self.storage_type == "s3" and file_path.startswith("s3://"):
+                _, rest = file_path.split("s3://", 1)
+                bucket, key = rest.split("/", 1)
+                self.s3_client.delete_object(Bucket=bucket, Key=key)
+                return True
             if os.path.exists(file_path):
                 os.remove(file_path)
                 return True
@@ -107,7 +141,25 @@ class StorageService:
     
     async def get_image_path(self, filename: str, user_id: str) -> str:
         """Obtener la ruta completa de una imagen"""
+        if self.storage_type == "s3":
+            key = f"{self.s3_prefix}images/{user_id}/{filename}"
+            return f"s3://{self.s3_bucket}/{key}"
         return os.path.join(self.local_storage_path, "images", user_id, filename)
+
+    def generate_presigned_url(self, file_path: str, expires_in: int = 3600) -> Optional[str]:
+        """Generar URL prefirmada para descarga cuando STORAGE_TYPE=s3"""
+        try:
+            if self.storage_type != "s3" or not file_path.startswith("s3://"):
+                return None
+            _, rest = file_path.split("s3://", 1)
+            bucket, key = rest.split("/", 1)
+            return self.s3_client.generate_presigned_url(
+                "get_object",
+                Params={"Bucket": bucket, "Key": key},
+                ExpiresIn=expires_in
+            )
+        except Exception:
+            return None
     
     def is_valid_image_type(self, filename: str) -> bool:
         """Verificar si el archivo es un tipo de imagen válido"""

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Query, Form
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from typing import List, Optional
 import os
 import logging
@@ -481,17 +481,17 @@ async def download_image(
     """Descargar una imagen"""
     try:
         image = await get_image_use_case.execute(image_id)
-        
+        storage = get_storage_service()
+        # Si usamos S3, generar presigned URL y redirigir
+        if hasattr(storage, "generate_presigned_url"):
+            presigned = storage.generate_presigned_url(image.file_path)
+            if presigned:
+                return RedirectResponse(url=presigned, status_code=302)
+        # Local fallback
         if not os.path.exists(image.file_path):
-            # Log extra y detalle del path
             logger.error(f"Archivo no encontrado: {image.file_path}")
             raise HTTPException(status_code=404, detail=f"Archivo no encontrado en el servidor: {image.file_path}")
-        
-        return FileResponse(
-            path=image.file_path,
-            filename=image.original_filename,
-            media_type=image.mime_type
-        )
+        return FileResponse(path=image.file_path, filename=image.original_filename, media_type=image.mime_type)
         
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
