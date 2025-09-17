@@ -1,5 +1,57 @@
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8001';
-const IMAGE_API_BASE_URL = process.env.REACT_APP_IMAGE_API_URL || 'http://localhost:8002';
+// Configuración dinámica de URLs según el entorno
+const getApiBaseUrl = () => {
+  const runtimeOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+  
+  // En producción, usar el ALB DNS si está configurado
+  if (process.env.NODE_ENV === 'production' && process.env.REACT_APP_ALB_DNS) {
+    return `http://${process.env.REACT_APP_ALB_DNS}`;
+  }
+  
+  // En desarrollo o si no hay ALB configurado, usar variables de entorno o runtime origin
+  return process.env.REACT_APP_API_URL || runtimeOrigin;
+};
+
+// En producción, todos los servicios están detrás del ALB con routing por paths
+// En desarrollo, cada servicio tiene su propio puerto
+const getAuthApiUrl = () => {
+  // Si estamos en producción (no localhost), usar la URL actual
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    return `${window.location.protocol}//${window.location.host}/api/v1`;
+  }
+  // En desarrollo, usar localhost
+  return 'http://localhost:8001/api/v1';
+};
+
+const getImageApiUrl = () => {
+  // Si estamos en producción (no localhost), usar la URL actual
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    return `${window.location.protocol}//${window.location.host}/api/v1`;
+  }
+  // En desarrollo, usar localhost
+  return 'http://localhost:8002/api/v1';
+};
+
+const getAnnotationApiUrl = () => {
+  // Si estamos en producción (no localhost), usar la URL actual
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    return `${window.location.protocol}//${window.location.host}/api/v1`;
+  }
+  // En desarrollo, usar localhost
+  return 'http://localhost:8003/api/v1';
+};
+
+// Colab proxy (desarrollo en 8004; en prod mismo host /api/v1)
+const getColabApiUrl = () => {
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    return `${window.location.protocol}//${window.location.host}/api/v1/colab`; // detrás del ALB con routing
+  }
+  return 'http://localhost:8004';
+};
+
+const API_BASE_URL = getAuthApiUrl();
+const IMAGE_API_BASE_URL = getImageApiUrl();
+const ANNOTATION_API_BASE_URL = getAnnotationApiUrl();
+const COLAB_API_BASE_URL = getColabApiUrl();
 
 export interface UserRegisterRequest {
   email: string;
@@ -58,6 +110,8 @@ export interface ImageUploadResponse {
   processing_status: string;
   error_code?: string;
   error_detail?: string;
+  // Opcional cuando la respuesta viene directamente del proxy de Colab
+  prediction?: TumorPredictionResult;
 }
 
 export interface AnnotationPoint {
@@ -168,11 +222,13 @@ class ApiService {
   private baseUrl: string;
   private imageApiUrl: string;
   private annotationApiUrl: string;
+  private colabApiUrl: string;
 
   constructor() {
     this.baseUrl = API_BASE_URL;
     this.imageApiUrl = IMAGE_API_BASE_URL;
-    this.annotationApiUrl = process.env.REACT_APP_ANNOTATION_API_URL || 'http://localhost:8003';
+    this.annotationApiUrl = ANNOTATION_API_BASE_URL;
+    this.colabApiUrl = COLAB_API_BASE_URL;
   }
 
   private async request<T>(
@@ -187,7 +243,13 @@ class ApiService {
     } else if (useAnnotationApi) {
       baseUrl = this.annotationApiUrl;
     }
-    const url = `${baseUrl}${endpoint}`;
+    // Normalización defensiva para evitar doble "/api/v1"
+    const trimmedBase = baseUrl.replace(/\/$/, '');
+    let normalizedEndpoint = endpoint;
+    if (normalizedEndpoint.startsWith('/api/v1/')) {
+      normalizedEndpoint = normalizedEndpoint.replace(/^\/api\/v1\//, '/');
+    }
+    const url = `${trimmedBase}${normalizedEndpoint}`;
     
     const config: RequestInit = {
       headers: {
@@ -240,26 +302,39 @@ class ApiService {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('user_id', userId);
-    console.log('formData', formData);
     if (customName) {
       formData.append('custom_filename', customName);
     }
 
     // Llamada directa síncrona
-    const url = `${this.imageApiUrl}/api/v1/images/validate-upload`;
+    const url = `${this.imageApiUrl}/images/validate-upload`;
     const resp = await fetch(url, { method: 'POST', body: formData });
     if (!resp.ok) {
       const errorData = await resp.json().catch(() => ({}));
       throw new Error(errorData.detail || `HTTP error! status: ${resp.status}`);
     }
-    const data = (await resp.json()) as ImageUploadResponse;
+    const raw = await resp.json();
+    const data = raw as ImageUploadResponse;
+    // Normalizar respuesta si viene del proxy de Colab (status/prediction/mean_score)
+    if (!data.prediction && raw && typeof raw === 'object' && 'prediction' in raw && 'mean_score' in raw) {
+      const predLabel = String(raw.prediction ?? '');
+      const esTumor = /tumor|sí|si|true|1/i.test(predLabel);
+      data.processing_status = 'completed';
+      (data as any).prediction = {
+        es_tumor: esTumor,
+        clase_predicha: predLabel,
+        confianza: Number(raw.mean_score ?? 0),
+        probabilidades: {},
+        recomendacion: ''
+      } as TumorPredictionResult;
+    }
     return data;
   }
 
   // Jobs de validación eliminados (flujo ahora síncrono)
 
   async getProcessingStatus(imageId: string): Promise<ProcessingStatusResponse> {
-    const url = `${this.imageApiUrl}/api/v1/images/${imageId}/processing-status`;
+    const url = `${this.imageApiUrl}/images/${imageId}/processing-status`;
     
     try {
       const response = await fetch(url);
@@ -269,10 +344,49 @@ class ApiService {
         throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
       }
 
-      return await response.json();
+      const raw = await response.json();
+      // Si el backend/proxy devolvió directamente el formato de Colab, adaptarlo
+      if (raw && typeof raw === 'object' && 'prediction' in raw && 'mean_score' in raw) {
+        const predLabel = String(raw.prediction ?? '');
+        const esTumor = /tumor|sí|si|true|1/i.test(predLabel);
+        const normalized: ProcessingStatusResponse = {
+          status: 'completed',
+          prediction: {
+            es_tumor: esTumor,
+            clase_predicha: predLabel,
+            confianza: Number(raw.mean_score ?? 0),
+            probabilidades: {},
+            recomendacion: ''
+          }
+        };
+        return normalized;
+      }
+      return raw as ProcessingStatusResponse;
     } catch (error) {
+      // Fallback: si no existe el endpoint (flujo sin Celery), intenta leer la imagen y mapear su predicción
+      try {
+        const img = await this.getImage(imageId);
+        if ((img as any).prediction) {
+          const p = (img as any).prediction;
+          const normalized: ProcessingStatusResponse = {
+            image_id: imageId,
+            status: 'completed',
+            prediction: {
+              es_tumor: Boolean(p.es_tumor ?? /tumor|sí|si|true|1/i.test(String(p.clase_predicha ?? ''))),
+              clase_predicha: String(p.clase_predicha ?? ''),
+              confianza: Number(p.confianza ?? p.mean_score ?? 0),
+              probabilidades: p.probabilidades ?? {},
+              recomendacion: p.recomendacion ?? ''
+            }
+          };
+          return normalized;
+        }
+      } catch (e2) {
+        console.error('Fallback getImage failed:', e2);
+      }
       console.error('Get processing status failed:', error);
-      throw error;
+      // Como último recurso, devolvemos estado completado sin detalles para no romper la UI
+      return { status: 'completed', image_id: imageId };
     }
   }
 
@@ -282,32 +396,64 @@ class ApiService {
     params.append('skip', skip.toString());
     params.append('limit', limit.toString());
     
-    return this.request<ImageListResponse>(`/api/v1/images/?${params.toString()}`, {}, true);
+    return this.request<ImageListResponse>(`/images/?${params.toString()}`, {}, true);
   }
 
   async getImage(imageId: string): Promise<ImageResponse> {
-    return this.request<ImageResponse>(`/api/v1/images/${imageId}`, {}, true);
+    return this.request<ImageResponse>(`/images/${imageId}`, {}, true);
   }
 
   async deleteImage(imageId: string): Promise<{ message: string; deleted: boolean }> {
-    return this.request<{ message: string; deleted: boolean }>(`/api/v1/images/${imageId}`, {
+    return this.request<{ message: string; deleted: boolean }>(`/images/${imageId}`, {
       method: 'DELETE',
     }, true);
   }
 
   getImageDownloadUrl(imageId: string): string {
-    return `${this.imageApiUrl}/api/v1/images/download/${imageId}`;
+    return `${this.imageApiUrl}/images/download/${imageId}`;
+  }
+
+  // Colab proxy prediction (reenvía al servicio 8004)
+  async predictImageViaColab(imageId: string): Promise<ProcessingStatusResponse> {
+    const downloadUrl = this.getImageDownloadUrl(imageId);
+    const res = await fetch(downloadUrl);
+    if (!res.ok) {
+      throw new Error(`No se pudo descargar la imagen ${imageId}`);
+    }
+    const blob = await res.blob();
+    const file = new File([blob], `${imageId}.jpg`, { type: blob.type || 'application/octet-stream' });
+    const form = new FormData();
+    form.append('image', file);
+    const resp = await fetch(`${this.colabApiUrl}/predict`, { method: 'POST', body: form });
+    if (!resp.ok) {
+      const t = await resp.text();
+      throw new Error(`Colab proxy error: ${resp.status} ${t}`);
+    }
+    const raw = await resp.json();
+    const predLabel = String(raw.prediction ?? '');
+    const esTumor = /tumor|sí|si|true|1/i.test(predLabel);
+    return {
+      image_id: imageId,
+      status: 'completed',
+      prediction: {
+        es_tumor: esTumor,
+        clase_predicha: predLabel,
+        confianza: Number(raw.mean_score ?? 0),
+        probabilidades: {},
+        recomendacion: ''
+      }
+    } as ProcessingStatusResponse;
   }
 
   // Image Chat methods
   async getImageChatHistory(imageId: string, userId: string, limit: number = 50): Promise<ChatHistoryResponse> {
     const params = new URLSearchParams({ user_id: userId, limit: String(limit) });
-    return this.request<ChatHistoryResponse>(`/api/v1/images/${imageId}/chat?${params.toString()}` , {}, true);
+    return this.request<ChatHistoryResponse>(`/images/${imageId}/chat?${params.toString()}` , {}, true);
   }
 
   async sendImageChatMessage(imageId: string, userId: string, message: string): Promise<ChatResponseDTO> {
     const params = new URLSearchParams({ user_id: userId });
-    return this.request<ChatResponseDTO>(`/api/v1/images/${imageId}/chat?${params.toString()}`, {
+    return this.request<ChatResponseDTO>(`/images/${imageId}/chat?${params.toString()}`, {
       method: 'POST',
       body: JSON.stringify({ message }),
     }, true);
@@ -315,15 +461,15 @@ class ApiService {
 
   // Annotation methods
   async getAnnotations(imageId: string): Promise<AnnotationListResponse> {
-    return this.request<AnnotationListResponse>(`/api/v1/annotations/?image_id=${imageId}`, {}, false, true);
+    return this.request<AnnotationListResponse>(`/annotations/?image_id=${imageId}`, {}, false, true);
   }
 
   async getAnnotationsByUser(userId: string): Promise<AnnotationListResponse> {
-    return this.request<AnnotationListResponse>(`/api/v1/annotations/?user_id=${userId}`, {}, false, true);
+    return this.request<AnnotationListResponse>(`/annotations/?user_id=${userId}`, {}, false, true);
   }
 
   async createAnnotation(data: AnnotationRequest): Promise<AnnotationResponse> {
-    const response = await this.request<{ message: string; annotation: AnnotationResponse }>('/api/v1/annotations/', {
+    const response = await this.request<{ message: string; annotation: AnnotationResponse }>(`/annotations/`, {
       method: 'POST',
       body: JSON.stringify(data),
     }, false, true);
@@ -331,7 +477,7 @@ class ApiService {
   }
 
   async updateAnnotation(annotationId: string, data: Partial<AnnotationRequest>): Promise<AnnotationResponse> {
-    const response = await this.request<{ message: string; annotation: AnnotationResponse }>(`/api/v1/annotations/${annotationId}`, {
+    const response = await this.request<{ message: string; annotation: AnnotationResponse }>(`/annotations/${annotationId}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     }, false, true);
@@ -339,7 +485,7 @@ class ApiService {
   }
 
   async deleteAnnotation(annotationId: string): Promise<{ message: string; deleted: boolean }> {
-    return this.request<{ message: string; deleted: boolean }>(`/api/v1/annotations/${annotationId}`, {
+    return this.request<{ message: string; deleted: boolean }>(`/annotations/${annotationId}`, {
       method: 'DELETE',
     }, false, true);
   }

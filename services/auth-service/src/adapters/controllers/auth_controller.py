@@ -56,6 +56,9 @@ async def get_current_user(
             detail="Token inválido o expirado",
             headers={"WWW-Authenticate": "Bearer"},
         )
+@router.get("/health")
+async def health():
+    return {"status": "ok"}
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def register_user(

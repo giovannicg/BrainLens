@@ -27,10 +27,21 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# Configuración dinámica de CORS
+def get_cors_origins():
+    """Configuración dinámica de CORS según el entorno"""
+    environment = os.getenv("ENVIRONMENT", "development")
+    alb_dns = os.getenv("ALB_DNS_NAME", "")
+
+    if environment == "production" and alb_dns:
+        return [f"http://{alb_dns}", f"https://{alb_dns}"]
+    else:
+        return ["http://localhost:3000", "http://127.0.0.1:3000"]
+
 # Configurar CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # En producción, especificar dominios específicos
+    allow_origins=get_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -76,6 +87,15 @@ async def health_check():
         "service": "image-service",
         "database": "connected" if database.client else "disconnected",
         "background_processing": "enabled"
+    }
+
+# Health bajo prefijo de API para ALB/productivo
+@app.get("/api/v1/images/health")
+async def health_check_api_v1():
+    return {
+        "status": "healthy",
+        "service": "image-service",
+        "database": "connected" if database.client else "disconnected"
     }
 
 if __name__ == "__main__":

@@ -1,6 +1,7 @@
 import logging
 import os
 from fastapi import FastAPI
+from fastapi import APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from .infrastructure.database import connect_to_mongo, close_mongo_connection, health_check as db_health_check
 from .adapters.controllers.auth_controller import router as auth_router
@@ -11,7 +12,17 @@ class Settings(BaseSettings):
     APP_TITLE: str = "BrainLens Auth Service"
     APP_DESCRIPTION: str = "Servicio de autenticación para BrainLens"
     APP_VERSION: str = "1.0.0"
-    ALLOW_ORIGINS: list[str] = ["*"]  # Cambiar en producción
+    ENVIRONMENT: str = "development"
+    ALB_DNS_NAME: str = ""
+    
+    @property
+    def ALLOW_ORIGINS(self) -> list[str]:
+        """Configuración dinámica de CORS según el entorno"""
+        if self.ENVIRONMENT == "production" and self.ALB_DNS_NAME:
+            return [f"http://{self.ALB_DNS_NAME}", f"https://{self.ALB_DNS_NAME}"]
+        else:
+            return ["http://localhost:3000", "http://127.0.0.1:3000"]
+    
     class Config:
         env_file = ".env"
 
@@ -49,7 +60,10 @@ async def shutdown_event():
     logging.info("Cerrando Auth Service...")
     await close_mongo_connection()
 
-app.include_router(auth_router)
+# Montar rutas bajo /api/v1 para entorno productivo
+api_v1 = APIRouter(prefix="/api/v1")
+api_v1.include_router(auth_router)  # auth_router ya tiene prefix="/auth"
+app.include_router(api_v1)
 
 @app.get("/")
 async def root():
@@ -59,7 +73,8 @@ async def root():
         "service": "auth"
     }
 
-@app.get("/health")
+# Health para ALB: /api/v1/auth/health
+@app.get("/api/v1/auth/health")
 async def health_check():
     """Verificar el estado de la API y la base de datos"""
     db_status = await db_health_check()
@@ -68,6 +83,9 @@ async def health_check():
         "database": db_status,
         "service": "auth"
     }
+
+
+if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("AUTH_SERVICE_PORT", "8001"))
     uvicorn.run(app, host="0.0.0.0", port=port)

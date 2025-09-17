@@ -70,6 +70,15 @@ async def health_check():
         "database": "connected" if database.client else "disconnected"
     }
 
+# Health bajo prefijo de API para ALB/productivo
+@app.get("/api/v1/annotations/health")
+async def health_check_api_v1():
+    return {
+        "status": "healthy",
+        "service": "annotation-service",
+        "database": "connected" if database.client else "disconnected"
+    }
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(

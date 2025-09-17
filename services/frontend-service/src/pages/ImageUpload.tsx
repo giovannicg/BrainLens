@@ -77,17 +77,10 @@ const ImageUpload: React.FC = () => {
 
   // Guardar estado en localStorage cuando cambie
   useEffect(() => {
-    console.log('Guardando progreso en localStorage:', uploadProgress);
     localStorage.setItem('uploadProgress', JSON.stringify(uploadProgress));
   }, [uploadProgress]);
 
   useEffect(() => {
-    console.log('Guardando archivos en localStorage:', uploadedFiles);
-    localStorage.setItem('uploadedFiles', JSON.stringify(uploadedFiles));
-  }, [uploadedFiles]);
-
-  useEffect(() => {
-    console.log('Guardando resultados en localStorage:', uploadResults);
     localStorage.setItem('uploadResults', JSON.stringify(uploadResults));
   }, [uploadResults]);
 /**
@@ -166,7 +159,7 @@ const ImageUpload: React.FC = () => {
       window.clearTimeout(errorTimeoutRef.current);
     }
     const results: ImageUploadResponse[] = [];
-    console.log('Iniciando subida de archivos:', uploadedFiles);
+
     try {
       for (const fileWithName of uploadedFiles) {
         // Inicializar progreso para este archivo
@@ -260,7 +253,6 @@ const ImageUpload: React.FC = () => {
   };
 
   const clearResults = () => {
-    console.log('Limpiando resultados de la subida');
     setUploadResults([]);
     setUploadProgress({});
     localStorage.removeItem('uploadResults');
@@ -348,7 +340,7 @@ const ImageUpload: React.FC = () => {
               onClick={handleUpload}
               disabled={uploading}
               className="upload-button"
-            > 
+            >
               {uploading ? 'Subiendo...' : 'Subir Imágenes'}
             </button>
           </div>

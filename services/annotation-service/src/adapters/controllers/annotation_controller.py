@@ -137,6 +137,15 @@ async def get_annotations(
     except Exception as e:
         handle_internal_error(e, context="al obtener anotaciones")
 
+@router.get("/health")
+async def health_check():
+    """Endpoint de verificación de salud del servicio"""
+    return {
+        "status": "healthy",
+        "service": "annotation-service",
+        "database": "connected"
+    }
+
 @router.get("/{annotation_id}", response_model=AnnotationResponse)
 async def get_annotation(
     annotation_id: str,

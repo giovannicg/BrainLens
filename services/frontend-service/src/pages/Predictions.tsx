@@ -31,7 +31,30 @@ const Predictions: React.FC = () => {
       const predictionsData: Record<string, ProcessingStatusResponse> = {};
       for (const image of completedImages) {
         try {
-          const prediction = await apiService.getProcessingStatus(image.id);
+          let prediction = await apiService.getProcessingStatus(image.id);
+          // Fallback: si no viene predicción pero la imagen la trae embebida, úsala
+          if ((!prediction || !prediction.prediction) && (image as any).prediction) {
+            const p: any = (image as any).prediction;
+            prediction = {
+              image_id: image.id,
+              status: 'completed',
+              prediction: {
+                es_tumor: Boolean(p.es_tumor ?? /tumor|sí|si|true|1/i.test(String(p.clase_predicha ?? ''))),
+                clase_predicha: String(p.clase_predicha ?? ''),
+                confianza: Number(p.confianza ?? p.mean_score ?? 0),
+                probabilidades: p.probabilidades ?? {},
+                recomendacion: p.recomendacion ?? ''
+              }
+            } as ProcessingStatusResponse;
+          }
+          // Segundo fallback: pedir al proxy Colab directamente y mostrar resultado
+          if (!prediction || !prediction.prediction) {
+            try {
+              prediction = await apiService.predictImageViaColab(image.id);
+            } catch (e) {
+              console.error('predict via colab failed', e);
+            }
+          }
           predictionsData[image.id] = prediction;
         } catch (err) {
           console.error(`Error loading prediction for image ${image.id}:`, err);
@@ -164,16 +187,16 @@ const Predictions: React.FC = () => {
                         </div>
                         <div className="prediction-item">
                           <strong>Tiempo de procesamiento:</strong>
-                          <span className="prediction-value">{prediction.processing_completed ? '—' : 'N/A'}</span>
+                          <span className="prediction-value">{prediction.processing_completed ? formatDate(prediction.processing_completed) : 'N/A'}</span>
                         </div>
                         <div className="prediction-item">
                           <strong>Procesado:</strong>
                           <span className="prediction-value">{formatDate(prediction.processing_completed || '')}</span>
                         </div>
-                        {prediction.prediction.recomendacion && (
+                        {prediction.prediction.recomendacion && prediction.prediction.recomendacion.trim() && (
                           <div className="prediction-item">
                             <strong>Recomendación:</strong>
-                            <span className="prediction-value">{prediction.prediction.recomendacion ? '-' : 'N/A'}</span>
+                            <span className="prediction-value">{prediction.prediction.recomendacion}</span>
                           </div>
                         )}
                       </div>

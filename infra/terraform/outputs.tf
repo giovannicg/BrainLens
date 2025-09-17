@@ -13,23 +13,15 @@ output "ecr_colab_uri" {
 output "ecr_annotation_uri" {
   value = aws_ecr_repository.annotation.repository_url
 }
-output "alb_dns" {
-  value = aws_lb.alb.dns_name
-}
-
-output "auth_url" {
-  value = "http://${aws_lb.alb.dns_name}/api/v1/auth"
-}
-
-output "annotation_url" {
-  value = "http://${aws_lb.alb.dns_name}/api/v1/annotations"
-}
-
-output "colab_url" {
-  value = "http://${aws_lb.alb.dns_name}/api/v1/colab"
-}
-
-output "images_url" {
-  value = "http://${aws_lb.alb.dns_name}/api/v1/images"
+# Application URLs (LoadBalancer will be created by ingress)
+output "application_info" {
+  value = {
+    frontend_url = "LoadBalancer URL will be available after Kubernetes deployment"
+    auth_url = "LoadBalancer URL will be available after Kubernetes deployment"
+    image_url = "LoadBalancer URL will be available after Kubernetes deployment"
+    annotation_url = "LoadBalancer URL will be available after Kubernetes deployment"
+    colab_url = "LoadBalancer URL will be available after Kubernetes deployment"
+  }
+  description = "Application URLs (LoadBalancer created by Kubernetes ingress)"
 }
 

@@ -1,10 +1,8 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
 import './Home.css';
 
 const Home: React.FC = () => {
-  const { isAuthenticated } = useAuth();
   return (
     <div className="home">
       <section className="hero">
@@ -23,16 +21,9 @@ const Home: React.FC = () => {
             <Link to="/upload" className="btn btn-primary">
               Comenzar Análisis
             </Link>
-            {!isAuthenticated && (
-              <Link to="/register" className="btn btn-secondary">
-                Registrarse
-              </Link>
-            )}
-            {isAuthenticated && (
-              <Link to="/predictions" className="btn btn-secondary">
-                Ver Predicciones
-              </Link>
-            )}
+            <Link to="/register" className="btn btn-secondary">
+              Registrarse
+            </Link>
           </div>
         </div>
       </section>
@@ -65,17 +56,15 @@ const Home: React.FC = () => {
         </div>
       </section>
 
-      {!isAuthenticated && (
-        <section className="cta">
-          <div className="container">
-            <h2>¿Listo para comenzar?</h2>
-            <p>Únete a BrainLens y revoluciona tu análisis de imágenes médicas</p>
-            <Link to="/register" className="btn btn-primary">
-              Registrarse Gratis
-            </Link>
-          </div>
-        </section>
-      )}
+      <section className="cta">
+        <div className="container">
+          <h2>¿Listo para comenzar?</h2>
+          <p>Únete a BrainLens y revoluciona tu análisis de imágenes médicas</p>
+          <Link to="/register" className="btn btn-primary">
+            Registrarse Gratis
+          </Link>
+        </div>
+      </section>
     </div>
   );
 };

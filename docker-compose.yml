@@ -15,6 +15,7 @@ services:
     networks:
       - brainlens-network
 
+  
 
   # Ollama (LLaMA en Docker)
   ollama:
@@ -118,8 +119,8 @@ services:
       - HOST=0.0.0.0
       - PORT=8004
       - DEBUG=true
-    volumes:
-      - ./modelo_multiclase:/app/modelo_multiclase
+      - COLAB_PREDICT_URL=https://4ae51406e065.ngrok-free.app/predict
+      - COLAB_PREDICT_RAW_URL=https://4ae51406e065.ngrok-free.app/predict-raw
     ports:
       - "8004:8004"
     depends_on:
@@ -134,117 +135,10 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"
-    volumes:
-      - ./services/frontend-service/src:/app/src
-      - ./services/frontend-service/public:/app/public
-      - /app/node_modules
     depends_on:
       - auth-service
     networks:
       - brainlens-network
-
-  # Zookeeper para Kafka
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.5.0
-    container_name: brainlens-zookeeper
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-    ports:
-      - "2181:2181"
-    networks:
-      - brainlens-network
-
-  # Kafka
-  kafka:
-    image: confluentinc/cp-kafka:7.5.0
-    container_name: brainlens-kafka
-    depends_on:
-      - zookeeper
-    ports:
-      - "9092:9092"
-      - "9093:9093"
-    environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9093
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
-    networks:
-      - brainlens-network
-
-  # Workers Kafka
-  worker-validate-upload:
-    build: ./services/image-service
-    container_name: brainlens-worker-validate-upload
-    command: python -m tasks.worker_validate_upload
-    depends_on:
-      - kafka
-      - mongodb
-      - ollama
-      - colab-service
-    environment:
-      - MONGODB_URL=mongodb://admin:password@mongodb:27017/brainlens?authSource=admin
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-      - VLM_PROVIDER=ollama
-      - VLM_MODEL=llava:7b
-      - OLLAMA_BASE_URL=http://ollama:11434
-      - VLM_SYSTEM_PROMPT=Eres un validador médico especializado. Tu única función es determinar si una imagen es una tomografía computarizada (CT) del cerebro. Responde ÚNICAMENTE con "SÍ" si es una CT cerebral válida o "NO" si no lo es, seguido de una breve explicación técnica.
-      - VLM_VALIDATOR_SYSTEM_PROMPT=Analiza esta imagen médica y determina si es una tomografía computarizada del cerebro. Considera 1) Estructura anatómica cerebral visible, 2) Características típicas de CT (escala de grises Hounsfield), 3) Orientación axial/coronal/sagital típica. Responde solo SÍ o NO.
-      - VLM_FORCE_SPANISH=true
-      - VLM_TIMEOUT=120
-      - COLAB_SERVICE_URL=http://colab-service:8004
-      - DEBUG=true
-    volumes:
-      - image_storage:/app/storage
-    networks:
-      - brainlens-network
-    restart: unless-stopped
-
-  worker-tumor-analysis:
-    build: ./services/image-service
-    container_name: brainlens-worker-tumor-analysis
-    command: python -m tasks.worker_tumor_analysis
-    depends_on:
-      - kafka
-      - mongodb
-      - colab-service
-    environment:
-      - MONGODB_URL=mongodb://admin:password@mongodb:27017/brainlens?authSource=admin
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-      - COLAB_SERVICE_URL=http://colab-service:8004
-      - DEBUG=true
-    volumes:
-      - image_storage:/app/storage
-    networks:
-      - brainlens-network
-    restart: unless-stopped
-
-  worker-image-chat:
-    build: ./services/image-service
-    container_name: brainlens-worker-image-chat
-    command: python -m tasks.worker_image_chat
-    depends_on:
-      - kafka
-      - mongodb
-      - ollama
-    environment:
-      - MONGODB_URL=mongodb://admin:password@mongodb:27017/brainlens?authSource=admin
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-      - VLM_PROVIDER=ollama
-      - VLM_MODEL=llava:7b
-      - OLLAMA_BASE_URL=http://ollama:11434
-      - VLM_SYSTEM_PROMPT=Eres un asistente médico especializado en análisis de imágenes cerebrales. Ayuda a interpretar tomografías y resonancias del cerebro de manera clara y educativa.
-      - VLM_FORCE_SPANISH=true
-      - VLM_TIMEOUT=120
-      - DEBUG=true
-    volumes:
-      - image_storage:/app/storage
-    networks:
-      - brainlens-network
-    restart: unless-stopped
 
 volumes:
   mongodb_data:

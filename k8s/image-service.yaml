@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: image-service
+  namespace: brainlens
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: image-service
+  template:
+    metadata:
+      labels:
+        app: image-service
+    spec:
+      imagePullSecrets:
+      - name: ecr-pull-secret
+      containers:
+      - name: image-service
+        image: "{{ECR_REGISTRY}}/brainlens-image:latest"
+        ports:
+        - containerPort: 8002
+        env:
+        - name: MONGODB_URL
+          valueFrom:
+            secretKeyRef:
+              name: brainlens-secrets
+              key: mongo-connection-string
+        - name: COLAB_SERVICE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: brainlens-config
+              key: COLAB_SERVICE_URL
+        - name: HOST
+          value: "0.0.0.0"
+        - name: PORT
+          value: "8002"
+        envFrom:
+        - configMapRef:
+            name: brainlens-config
+        - secretRef:
+            name: brainlens-secrets
+        volumeMounts:
+        - name: image-storage
+          mountPath: /app/storage
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "200m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /api/v1/images/health
+            port: 8002
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /api/v1/images/health
+            port: 8002
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+      volumes:
+      - name: image-storage
+        emptyDir: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: image-service
+  namespace: brainlens
+spec:
+  selector:
+    app: image-service
+  ports:
+  - port: 8002
+    targetPort: 8002
+  type: ClusterIP
