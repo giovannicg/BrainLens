@@ -107,7 +107,7 @@ terraform apply
 
 2. **Configurar kubectl para EKS**:
 ```bash
-aws eks update-kubeconfig --region eu-north-1 --name brainlens-eks
+aws eks update-kubeconfig --region us-east-1 --name brainlens-eks
 ```
 
 3. **Desplegar con GitHub Actions**:
@@ -243,7 +243,7 @@ S3_PREFIX=images
 # Configuración de AWS
 AWS_ACCESS_KEY_ID=your_access_key
 AWS_SECRET_ACCESS_KEY=your_secret_key
-AWS_DEFAULT_REGION=eu-north-1
+AWS_DEFAULT_REGION=us-east-1
 
 # Configuración de IA
 VLM_PROVIDER=bedrock

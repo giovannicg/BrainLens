@@ -17,7 +17,7 @@ spec:
       - name: ecr-pull-secret
       containers:
       - name: colab-service
-        image: "328764941686.dkr.ecr.eu-north-1.amazonaws.com/brainlens-colab:latest"
+        image: "328764941686.dkr.ecr.us-east-1.amazonaws.com/brainlens-colab:latest"
         ports:
         - containerPort: 8004
         env:

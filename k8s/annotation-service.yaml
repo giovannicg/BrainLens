@@ -17,7 +17,7 @@ spec:
       - name: ecr-pull-secret
       containers:
       - name: annotation-service
-        image: "328764941686.dkr.ecr.eu-north-1.amazonaws.com/brainlens-annotation:latest"
+        image: "328764941686.dkr.ecr.us-east-1.amazonaws.com/brainlens-annotation:latest"
         ports:
         - containerPort: 8003
         env:

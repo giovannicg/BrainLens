@@ -3,9 +3,9 @@
 
 terraform {
   backend "s3" {
-    bucket         = "brainlens-terraform-state-1758055280"  # Reemplaza con tu bucket
+    bucket         = "brainlens-terraform-state-1758236630"
     key            = "brainlens/terraform.tfstate"
-    region         = "eu-north-1"
+    region         = "us-east-1"
     dynamodb_table = "brainlens-terraform-locks"
     encrypt        = true
   }
@@ -118,8 +118,8 @@ resource "aws_eks_node_group" "brainlens" {
     min_size     = 1
   }
 
-  # Usar un tipo disponible y económico
-  instance_types = ["t4g.micro"]
+  # Usar un tipo disponible y económico (x86_64 compatible)
+  instance_types = ["t3.micro"]
   capacity_type  = "SPOT"
 
   depends_on = [

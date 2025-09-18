@@ -9,7 +9,7 @@ variable "project" {
 variable "aws_region" {
   type        = string
   description = "AWS region"
-  default     = "eu-north-1"
+  default     = "us-east-1"
 }
 
 variable "mongo_url" {

@@ -17,7 +17,7 @@ spec:
       - name: ecr-pull-secret
       containers:
       - name: image-service
-        image: "328764941686.dkr.ecr.eu-north-1.amazonaws.com/brainlens-image:latest"
+        image: "328764941686.dkr.ecr.us-east-1.amazonaws.com/brainlens-image:latest"
         ports:
         - containerPort: 8002
         env:

@@ -8,13 +8,13 @@ data:
   DATABASE_NAME: "brainlens"
   VLM_PROVIDER: "bedrock"
   BEDROCK_MODEL_ID: "amazon.nova-lite-v1:0"
-  AWS_REGION: "eu-north-1"
-  AWS_DEFAULT_REGION: "eu-north-1"
+  AWS_REGION: "us-east-1"
+  AWS_DEFAULT_REGION: "us-east-1"
   VLM_TIMEOUT: "300"
   DEBUG: "false"
   # Storage
   STORAGE_TYPE: "s3"
-  S3_BUCKET: "brainlens-storage-v8q35chb"
+  S3_BUCKET: "brainlens-storage-lehypqi4"
   S3_PREFIX: ""
   # Service URLs for internal communication (localhost style)
   AUTH_SERVICE_URL: "http://auth-service.brainlens.svc.cluster.local:8001"

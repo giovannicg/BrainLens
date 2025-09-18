@@ -17,7 +17,7 @@ spec:
       - name: ecr-pull-secret
       containers:
       - name: frontend
-        image: "328764941686.dkr.ecr.eu-north-1.amazonaws.com/brainlens-frontend:latest"
+        image: "328764941686.dkr.ecr.us-east-1.amazonaws.com/brainlens-frontend:latest"
         ports:
         - containerPort: 3000
         env:
