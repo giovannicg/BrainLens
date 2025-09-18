@@ -38,6 +38,5 @@ variable "eks_node_count" {
 variable "eks_instance_type" {
   type        = string
   description = "EKS node instance type"
-  default     = "t3.medium"
+  default     = "t4g.micro"
 }
-

@@ -1,14 +1,10 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File, Request, Response
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional
 import os
 import logging
 import httpx
-import time
-import base64
-import traceback
-import asyncio
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -32,29 +28,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Middleware para headers de caché
-@app.middleware("http")
-async def add_cache_headers(request: Request, call_next):
-    response = await call_next(request)
-    
-    # Headers de seguridad
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
-    response.headers["X-XSS-Protection"] = "1; mode=block"
-    
-    # Configurar caché según el tipo de endpoint
-    path = request.url.path
-    
-    if path in ["/health", "/api/v1/colab/health"]:
-        # Health check - sin caché
-        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-    else:
-        # APIs de predicción - sin caché (datos dinámicos)
-        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-        response.headers["Pragma"] = "no-cache"
-    
-    return response
 
 @app.get("/health")
 async def health():
@@ -83,6 +56,7 @@ async def predict_tumor(image: UploadFile = File(...)):
     de las predicciones por modelo. En empate, se elige la clase con mayor media de
     probabilidad entre las empatadas; si persiste empate, la de menor índice.
     """
+    import time, base64, traceback, asyncio
     start_time = time.time()
     # Siempre usar Colab; si no está configurado, error
     colab_url = os.getenv("COLAB_PREDICT_URL", "").strip()
@@ -117,7 +91,7 @@ async def predict_tumor(image: UploadFile = File(...)):
             status=str(data.get("status", "success")),
             prediction=data.get("prediction"),
             mean_score=float(data.get("mean_score")) if data.get("mean_score") is not None else None,
-            processing_time=float(elapsed),
+            processing_time=float(data.get("processing_time", elapsed)),
             error=data.get("error")
         )
     except HTTPException:
@@ -157,6 +131,7 @@ async def predict_tumor_raw(image: UploadFile = File(...)):
     except Exception as e:
         logger.error("Fallo reenviando a Colab (raw): %s", str(e))
         raise HTTPException(status_code=502, detail=f"Error comunicando con Colab (raw): {str(e)}")
+
 
 if __name__ == "__main__":
     import uvicorn

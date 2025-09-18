@@ -24,4 +24,3 @@ output "application_info" {
   }
   description = "Application URLs (LoadBalancer created by Kubernetes ingress)"
 }
-

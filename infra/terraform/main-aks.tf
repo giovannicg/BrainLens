@@ -89,7 +89,7 @@ resource "aws_route_table_association" "b" {
 resource "aws_eks_cluster" "brainlens" {
   name     = "${local.name}-eks"
   role_arn = aws_iam_role.eks_cluster.arn
-  version  = "1.30"
+  version  = "1.33"
 
   vpc_config {
     subnet_ids = [aws_subnet.public_a.id, aws_subnet.public_b.id]
@@ -119,7 +119,7 @@ resource "aws_eks_node_group" "brainlens" {
   }
 
   # Usar un tipo disponible y económico
-  instance_types = ["t3.small"]
+  instance_types = ["t4g.micro"]
   capacity_type  = "SPOT"
 
   depends_on = [
@@ -197,6 +197,7 @@ resource "aws_iam_role_policy_attachment" "eks_container_registry_policy" {
 resource "aws_ecr_repository" "frontend" {
   name                 = "${local.name}-frontend"
   image_tag_mutability = "MUTABLE"
+  force_delete         = true
 
   image_scanning_configuration {
     scan_on_push = true
@@ -206,6 +207,7 @@ resource "aws_ecr_repository" "frontend" {
 resource "aws_ecr_repository" "auth" {
   name                 = "${local.name}-auth"
   image_tag_mutability = "MUTABLE"
+  force_delete         = true
 
   image_scanning_configuration {
     scan_on_push = true
@@ -215,6 +217,7 @@ resource "aws_ecr_repository" "auth" {
 resource "aws_ecr_repository" "image" {
   name                 = "${local.name}-image"
   image_tag_mutability = "MUTABLE"
+  force_delete         = true
 
   image_scanning_configuration {
     scan_on_push = true
@@ -224,6 +227,7 @@ resource "aws_ecr_repository" "image" {
 resource "aws_ecr_repository" "annotation" {
   name                 = "${local.name}-annotation"
   image_tag_mutability = "MUTABLE"
+  force_delete         = true
 
   image_scanning_configuration {
     scan_on_push = true
@@ -233,6 +237,7 @@ resource "aws_ecr_repository" "annotation" {
 resource "aws_ecr_repository" "colab" {
   name                 = "${local.name}-colab"
   image_tag_mutability = "MUTABLE"
+  force_delete         = true
 
   image_scanning_configuration {
     scan_on_push = true
@@ -245,7 +250,8 @@ resource "aws_ecr_repository" "colab" {
 
 # S3 Bucket for file storage
 resource "aws_s3_bucket" "storage" {
-  bucket = "${local.name}-storage-${random_string.bucket_suffix.result}"
+  bucket        = "${local.name}-storage-${random_string.bucket_suffix.result}"
+  force_destroy = true
 
   tags = {
     Name = "${local.name}-storage"
