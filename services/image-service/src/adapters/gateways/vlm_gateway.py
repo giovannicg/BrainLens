@@ -11,16 +11,18 @@ logger = logging.getLogger(__name__)
 class VisionLanguageGateway:
     def __init__(self):
         self.provider = os.getenv("VLM_PROVIDER", "ollama")
-        self.model = os.getenv("VLM_MODEL", "llava")
+        self.model = os.getenv("VLM_MODEL", "llava")  # Solo para Ollama
         self.base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
         self.system_prompt = os.getenv("VLM_SYSTEM_PROMPT", "Eres un asistente médico especializado en análisis de imágenes radiológicas.")
         self.force_spanish = os.getenv("VLM_FORCE_SPANISH", "true").lower() == "true"
         self.timeout = int(os.getenv("VLM_TIMEOUT", "60"))  # Timeout en segundos
         # Bedrock
         self.aws_region = os.getenv("AWS_REGION", os.getenv("AWS_DEFAULT_REGION", "us-east-1"))
-        self.bedrock_model_id = os.getenv("BEDROCK_MODEL_ID", os.getenv("VLM_MODEL", "amazon.nova-lite-v1:0"))
+        self.bedrock_model_id = os.getenv("BEDROCK_MODEL_ID", "amazon.nova-lite-v1:0")
         
-        logger.info(f"VLM Gateway inicializado: provider={self.provider}, model={self.model}, timeout={self.timeout}s")
+        # Log con el modelo correcto según el proveedor
+        model_name = self.bedrock_model_id if self.provider == "bedrock" else self.model
+        logger.info(f"VLM Gateway inicializado: provider={self.provider}, model={model_name}, timeout={self.timeout}s")
     
     def ask_about_image(self, prompt: str, image_bytes: bytes, mime_type: str) -> str:
         """Hacer una pregunta sobre una imagen usando el VLM configurado"""
