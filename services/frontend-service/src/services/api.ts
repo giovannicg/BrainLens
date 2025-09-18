@@ -169,6 +169,26 @@ export interface TumorPredictionResult {
   recomendacion: string;
 }
 
+// Determina si una etiqueta corresponde a tumor de forma robusta.
+// Evita falsos positivos como "notumor", "no_tumor" o "sin tumor".
+const isTumorLabel = (label: string): boolean => {
+  const norm = String(label || '')
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '_');
+  // Etiquetas consideradas como NO tumor
+  const noTumorSet = new Set([
+    'no_tumor',
+    'notumor',
+    'sin_tumor',
+    'no-tumor',
+    'negativo',
+  ]);
+  if (noTumorSet.has(norm)) return false;
+  // Positivos explícitos
+  return norm === 'tumor' || norm === 'tumour' || norm === 'positivo';
+};
+
 export interface ProcessingStatusResponse {
   image_id?: string;
   status: string;
@@ -318,7 +338,7 @@ class ApiService {
     // Normalizar respuesta si viene del proxy de Colab (status/prediction/mean_score)
     if (!data.prediction && raw && typeof raw === 'object' && 'prediction' in raw && 'mean_score' in raw) {
       const predLabel = String(raw.prediction ?? '');
-      const esTumor = /tumor|sí|si|true|1/i.test(predLabel);
+      const esTumor = isTumorLabel(predLabel);
       data.processing_status = 'completed';
       (data as any).prediction = {
         es_tumor: esTumor,
@@ -348,7 +368,7 @@ class ApiService {
       // Si el backend/proxy devolvió directamente el formato de Colab, adaptarlo
       if (raw && typeof raw === 'object' && 'prediction' in raw && 'mean_score' in raw) {
         const predLabel = String(raw.prediction ?? '');
-        const esTumor = /tumor|sí|si|true|1/i.test(predLabel);
+        const esTumor = isTumorLabel(predLabel);
         const normalized: ProcessingStatusResponse = {
           status: 'completed',
           prediction: {
@@ -372,7 +392,7 @@ class ApiService {
             image_id: imageId,
             status: 'completed',
             prediction: {
-              es_tumor: Boolean(p.es_tumor ?? /tumor|sí|si|true|1/i.test(String(p.clase_predicha ?? ''))),
+              es_tumor: Boolean(p.es_tumor ?? isTumorLabel(String(p.clase_predicha ?? ''))),
               clase_predicha: String(p.clase_predicha ?? ''),
               confianza: Number(p.confianza ?? p.mean_score ?? 0),
               probabilidades: p.probabilidades ?? {},
@@ -431,7 +451,7 @@ class ApiService {
     }
     const raw = await resp.json();
     const predLabel = String(raw.prediction ?? '');
-    const esTumor = /tumor|sí|si|true|1/i.test(predLabel);
+    const esTumor = isTumorLabel(predLabel);
     return {
       image_id: imageId,
       status: 'completed',
@@ -444,6 +464,8 @@ class ApiService {
       }
     } as ProcessingStatusResponse;
   }
+
+
 
   // Image Chat methods
   async getImageChatHistory(imageId: string, userId: string, limit: number = 50): Promise<ChatHistoryResponse> {

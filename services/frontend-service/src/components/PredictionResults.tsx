@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import './PredictionResults.css';
-import { ProcessingStatusResponse } from '../services/api';
+import { ProcessingStatusResponse, apiService } from '../services/api';
 
 interface PredictionResultsProps {
   prediction: ProcessingStatusResponse; // <- usar el tipo del API
@@ -31,6 +31,15 @@ const toUiStatus = (s: ProcessingStatusResponse['status']) =>
   s === 'failed' ? 'error' : s; // 'failed' -> 'error'
 
 const PredictionResults: React.FC<PredictionResultsProps> = ({ prediction }) => {
+
+  // Función de apoyo alineada con ApiService para evitar falsos positivos por "notumor"
+  const isTumorLabel = (label: string): boolean => {
+    const norm = String(label || '').toLowerCase().trim().replace(/\s+/g, '_');
+    const noTumorSet = new Set(['no_tumor','notumor','sin_tumor','no-tumor','negativo']);
+    if (noTumorSet.has(norm)) return false;
+    return norm === 'tumor' || norm === 'tumour' || norm === 'positivo';
+  };
+
   // si no hay predicción lista
   if (!prediction || toUiStatus(prediction.status) !== 'completed' || !prediction.prediction) {
     return (
@@ -57,7 +66,9 @@ const PredictionResults: React.FC<PredictionResultsProps> = ({ prediction }) => 
     return 'N/A';
   };
 
-  const { es_tumor, clase_predicha, confianza, probabilidades } = prediction.prediction;
+  const { clase_predicha, confianza, probabilidades } = prediction.prediction;
+  // SIEMPRE recalcular es_tumor basado en la clase predicha para evitar inconsistencias del backend
+  const es_tumor = isTumorLabel(clase_predicha);
   const sortedProbabilities = Object.entries(probabilidades || {}).sort((a, b) => b[1] - a[1]);
 
   return (
@@ -93,7 +104,7 @@ const PredictionResults: React.FC<PredictionResultsProps> = ({ prediction }) => 
           <strong>Tiempo de proceso:</strong> {getProcessingTime()}
         </div>
       </div>
-    </div>
+      </div>
   );
 };
 

@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 import os
 import logging
 import httpx
@@ -131,7 +131,6 @@ async def predict_tumor_raw(image: UploadFile = File(...)):
     except Exception as e:
         logger.error("Fallo reenviando a Colab (raw): %s", str(e))
         raise HTTPException(status_code=502, detail=f"Error comunicando con Colab (raw): {str(e)}")
-
 
 if __name__ == "__main__":
     import uvicorn

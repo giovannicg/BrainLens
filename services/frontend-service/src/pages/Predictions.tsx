@@ -12,6 +12,14 @@ const Predictions: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
+  // Alineado con la lógica del ApiService: evita que "notumor" dispare positivo
+  const isTumorLabel = (label: string): boolean => {
+    const norm = String(label || '').toLowerCase().trim().replace(/\s+/g, '_');
+    const noTumorSet = new Set(['no_tumor','notumor','sin_tumor','no-tumor','negativo']);
+    if (noTumorSet.has(norm)) return false;
+    return norm === 'tumor' || norm === 'tumour' || norm === 'positivo';
+  };
+
   useEffect(() => {
     if (user) {
       loadImages();
@@ -39,7 +47,7 @@ const Predictions: React.FC = () => {
               image_id: image.id,
               status: 'completed',
               prediction: {
-                es_tumor: Boolean(p.es_tumor ?? /tumor|sí|si|true|1/i.test(String(p.clase_predicha ?? ''))),
+                es_tumor: Boolean(p.es_tumor ?? isTumorLabel(String(p.clase_predicha ?? ''))),
                 clase_predicha: String(p.clase_predicha ?? ''),
                 confianza: Number(p.confianza ?? p.mean_score ?? 0),
                 probabilidades: p.probabilidades ?? {},
@@ -172,8 +180,8 @@ const Predictions: React.FC = () => {
                   {prediction && prediction.status === 'completed' && prediction.prediction ? (
                     <div className="prediction-results">
                       <div className="prediction-status">
-                        <span className={`status-badge ${prediction.prediction.es_tumor ? 'tumor-detected' : 'no-tumor'}`}>
-                          {prediction.prediction.es_tumor ? '⚠️ Tumor Detectado' : '✅ Sin Tumor'}
+                        <span className={`status-badge ${isTumorLabel(prediction.prediction.clase_predicha) ? 'tumor-detected' : 'no-tumor'}`}>
+                          {isTumorLabel(prediction.prediction.clase_predicha) ? '⚠️ Tumor Detectado' : '✅ Sin Tumor'}
                         </span>
                       </div>
                       <div className="prediction-details">

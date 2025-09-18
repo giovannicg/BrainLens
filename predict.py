@@ -67,6 +67,7 @@ def load_all_models(model_dir: str):
 MODELS = load_all_models(MODEL_DIR)
 logger.info(f"Modelos cargados: {len(MODELS)}")
 
+
 def preprocess_efficientnet_300(pil_img: Image.Image) -> np.ndarray:
     img = pil_img.convert("RGB").resize((300, 300))
     arr = image.img_to_array(img)
@@ -74,16 +75,8 @@ def preprocess_efficientnet_300(pil_img: Image.Image) -> np.ndarray:
     arr = tf.keras.applications.efficientnet.preprocess_input(arr)
     return arr
 
-def predict_voting(image_bytes: bytes):
-    if not MODELS:
-        raise RuntimeError("No hay modelos cargados en el servidor")
-    t0 = time.time()
-    logger.info(f"predict_voting: bytes={len(image_bytes)}")
-    pil_img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-    x = preprocess_efficientnet_300(pil_img)
-    logger.info(f"preprocess listo: shape={x.shape}")
-
-    # Obtener nombres de clase desde train_generator si existe; si no, via env CLASS_NAMES
+def get_class_names():
+    """Obtener nombres de clase de forma consistente"""
     class_names = None
     try:
         ci = train_generator.class_indices  # type: ignore[name-defined]
@@ -97,7 +90,18 @@ def predict_voting(image_bytes: bytes):
     # Por defecto (si no se definió nada), usar binario: 0:notumor, 1:tumor
     if class_names is None:
         class_names = {0: "notumor", 1: "tumor"}
+    return class_names
 
+def predict_voting(image_bytes: bytes):
+    if not MODELS:
+        raise RuntimeError("No hay modelos cargados en el servidor")
+    t0 = time.time()
+    logger.info(f"predict_voting: bytes={len(image_bytes)}")
+    pil_img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    x = preprocess_efficientnet_300(pil_img)
+    logger.info(f"preprocess listo: shape={x.shape}")
+
+    class_names = get_class_names()
     per_model_class_indices = []
     per_model_selected_probs = []
     class_index_to_probs = defaultdict(list)
@@ -146,6 +150,10 @@ def predict_voting(image_bytes: bytes):
     confidence = float(np.mean(class_index_to_probs.get(final_cls, per_model_selected_probs)))
     logger.info(f"final -> cls={final_cls} label={predicted_class_name} conf={confidence:.4f} total_time={(time.time()-t0):.3f}s")
     return predicted_class_name, confidence, counts, per_model_class_indices, per_model_selected_probs
+
+
+
+
 
 @app.route('/health', methods=['GET'])
 def health():
@@ -202,6 +210,8 @@ def predict_raw_api():
     except Exception as e:
         logger.exception("/predict-raw error")
         return jsonify({"status": "error", "error": str(e)}), 500
+
+
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', '8000'))
