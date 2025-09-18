@@ -100,7 +100,7 @@ class VisionLanguageGateway:
             if "messages" in response_data and isinstance(response_data["messages"], list) and response_data["messages"]:
                 content = response_data["messages"][-1].get("content", "").strip()
                 logger.info(f"Contenido de respuesta (messages): {content[:200]}...")
-                return content
+                return content.strip()
             
             logger.warning("No se encontró respuesta válida en la respuesta de Ollama")
             return ""
