@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi import FastAPI, HTTPException, UploadFile, File, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List
@@ -32,6 +32,29 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Middleware para headers de caché
+@app.middleware("http")
+async def add_cache_headers(request: Request, call_next):
+    response = await call_next(request)
+    
+    # Headers de seguridad
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    
+    # Configurar caché según el tipo de endpoint
+    path = request.url.path
+    
+    if path in ["/health", "/api/v1/colab/health"]:
+        # Health check - sin caché
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    else:
+        # APIs de predicción - sin caché (datos dinámicos)
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+    
+    return response
 
 @app.get("/health")
 async def health():

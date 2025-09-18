@@ -1,6 +1,6 @@
 
 import os
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
@@ -39,6 +39,33 @@ app = FastAPI(
     lifespan=lifespan
 )
 configure_cors(app)
+
+# Middleware para headers de caché
+@app.middleware("http")
+async def add_cache_headers(request: Request, call_next):
+    response = await call_next(request)
+    
+    # Headers de seguridad
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    
+    # Configurar caché según el tipo de endpoint
+    path = request.url.path
+    
+    if path in ["/health", "/api/v1/health"]:
+        # Health check - sin caché
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    elif path.startswith("/api/v1/annotations/") and request.method == "GET":
+        # Anotaciones - caché corto
+        response.headers["Cache-Control"] = "public, max-age=300"  # 5 minutos
+    else:
+        # APIs dinámicas - sin caché
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+    
+    return response
+
 configure_routers(app)
 
 @app.get("/")

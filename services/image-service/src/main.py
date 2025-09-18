@@ -1,5 +1,6 @@
 import os
-from fastapi import FastAPI, HTTPException
+import time
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
@@ -46,6 +47,36 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Middleware para headers de caché
+@app.middleware("http")
+async def add_cache_headers(request: Request, call_next):
+    response = await call_next(request)
+    
+    # Headers de seguridad
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    
+    # Configurar caché según el tipo de endpoint
+    path = request.url.path
+    
+    if path.startswith("/api/v1/images/download/"):
+        # Imágenes descargables - caché largo
+        response.headers["Cache-Control"] = "public, max-age=31536000"  # 1 año
+        response.headers["Expires"] = "Thu, 31 Dec 2025 23:59:59 GMT"
+    elif path.startswith("/api/v1/images/") and request.method == "GET":
+        # Metadatos de imágenes - caché corto
+        response.headers["Cache-Control"] = "public, max-age=300"  # 5 minutos
+    elif path == "/api/v1/images/health":
+        # Health check - sin caché
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    else:
+        # APIs dinámicas - sin caché
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+    
+    return response
 
 # Incluir routers
 app.include_router(image_router, prefix="/api/v1")

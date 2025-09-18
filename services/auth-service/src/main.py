@@ -1,6 +1,6 @@
 import logging
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi import APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from .infrastructure.database import connect_to_mongo, close_mongo_connection, health_check as db_health_check
@@ -49,6 +49,32 @@ def configure_cors(app: FastAPI):
     )
 
 configure_cors(app)
+
+# Middleware para headers de caché
+@app.middleware("http")
+async def add_cache_headers(request: Request, call_next):
+    response = await call_next(request)
+    
+    # Headers de seguridad
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    
+    # Configurar caché según el tipo de endpoint
+    path = request.url.path
+    
+    if path in ["/health", "/api/v1/health"]:
+        # Health check - sin caché
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    elif path.startswith("/api/v1/auth/login") or path.startswith("/api/v1/auth/register"):
+        # Endpoints de autenticación - sin caché
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+    else:
+        # Otros endpoints - caché corto
+        response.headers["Cache-Control"] = "public, max-age=60"
+    
+    return response
 
 @app.on_event("startup")
 async def startup_event():

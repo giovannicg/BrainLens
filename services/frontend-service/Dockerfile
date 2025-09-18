@@ -13,7 +13,14 @@ RUN npm ci --only=production
 # Copiar código fuente
 COPY . .
 
-# Construir la aplicación
+# Configurar variables de entorno para build optimizado
+ENV GENERATE_SOURCEMAP=false
+ENV INLINE_RUNTIME_CHUNK=false
+ENV IMAGE_INLINE_SIZE_LIMIT=0
+ENV REACT_APP_ENVIRONMENT=production
+ENV REACT_APP_CACHE_VERSION=2.0.0
+
+# Construir la aplicación optimizada
 RUN npm run build
 
 # Etapa de producción
