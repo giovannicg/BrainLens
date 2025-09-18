@@ -1,0 +1,98 @@
+name: Build and Push to ECR (and deploy ECS)
+
+on:
+  push:
+    branches: [ "main" ]
+
+env:
+  AWS_REGION: eu-north-1
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ vars.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Login to Amazon ECR
+      id: ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Set ECR repo URIs (from repo variables)
+      id: setvars
+      run: |
+        echo "ECR_FRONTEND=${{ vars.ECR_FRONTEND_URI }}" >> $GITHUB_ENV
+        echo "ECR_IMAGE=${{ vars.ECR_IMAGE_URI }}" >> $GITHUB_ENV
+        echo "ECR_AUTH=${{ vars.ECR_AUTH_URI }}" >> $GITHUB_ENV
+        echo "ECR_COLAB=${{ vars.ECR_COLAB_URI }}" >> $GITHUB_ENV
+        echo "ECR_ANNOTATION=${{ vars.ECR_ANNOTATION_URI }}" >> $GITHUB_ENV
+
+    - name: Build and push Frontend
+      uses: docker/build-push-action@v5
+      with:
+        context: ./services/frontend-service
+        push: true
+        tags: ${{ env.ECR_FRONTEND }}:latest
+
+    - name: Build and push Image Service
+      uses: docker/build-push-action@v5
+      with:
+        context: ./services/image-service
+        push: true
+        tags: ${{ env.ECR_IMAGE }}:latest
+
+    - name: Build and push Auth Service
+      uses: docker/build-push-action@v5
+      with:
+        context: ./services/auth-service
+        push: true
+        tags: ${{ env.ECR_AUTH }}:latest
+
+    - name: Build and push Colab Service
+      uses: docker/build-push-action@v5
+      with:
+        context: ./services/colab-service
+        push: true
+        tags: ${{ env.ECR_COLAB }}:latest
+
+    - name: Build and push Annotation Service
+      uses: docker/build-push-action@v5
+      with:
+        context: ./services/annotation-service
+        push: true
+        tags: ${{ env.ECR_ANNOTATION }}:latest
+
+    - name: Force new deployment ECS (backend)
+      if: ${{ success() }}
+      run: |
+        aws ecs update-service --cluster ${{ vars.ECS_CLUSTER_NAME }} --service ${{ vars.ECS_BACK_SERVICE_NAME }} --force-new-deployment
+
+    - name: Force new deployment ECS (frontend)
+      if: ${{ success() }}
+      run: |
+        aws ecs update-service --cluster ${{ vars.ECS_CLUSTER_NAME }} --service ${{ vars.ECS_FRONT_SERVICE_NAME }} --force-new-deployment
+
+    - name: Force new deployment ECS (auth)
+      if: ${{ success() && vars.ECS_AUTH_SERVICE_NAME != '' }}
+      run: |
+        aws ecs update-service --cluster ${{ vars.ECS_CLUSTER_NAME }} --service ${{ vars.ECS_AUTH_SERVICE_NAME }} --force-new-deployment
+
+    - name: Force new deployment ECS (annotation)
+      if: ${{ success() && vars.ECS_ANN_SERVICE_NAME != '' }}
+      run: |
+        aws ecs update-service --cluster ${{ vars.ECS_CLUSTER_NAME }} --service ${{ vars.ECS_ANN_SERVICE_NAME }} --force-new-deployment
+
+    - name: Force new deployment ECS (colab)
+      if: ${{ success() && vars.ECS_COLAB_SERVICE_NAME != '' }}
+      run: |
+        aws ecs update-service --cluster ${{ vars.ECS_CLUSTER_NAME }} --service ${{ vars.ECS_COLAB_SERVICE_NAME }} --force-new-deployment

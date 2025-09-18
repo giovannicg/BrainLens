@@ -335,6 +335,7 @@
 
 .image-details {
   flex: 1;
+  width: 100%;
 }
 
 .image-title {
