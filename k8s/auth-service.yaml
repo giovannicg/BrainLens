@@ -17,7 +17,7 @@ spec:
       - name: ecr-pull-secret
       containers:
       - name: auth-service
-        image: "{{ECR_REGISTRY}}/brainlens-auth:latest"
+        image: "328764941686.dkr.ecr.eu-north-1.amazonaws.com/brainlens-auth:latest"
         ports:
         - containerPort: 8001
         env:
@@ -42,11 +42,11 @@ spec:
             name: brainlens-secrets
         resources:
           requests:
-            memory: "256Mi"
-            cpu: "100m"
+            memory: "128Mi"
+            cpu: "50m"
           limits:
-            memory: "512Mi"
-            cpu: "200m"
+            memory: "256Mi"
+            cpu: "150m"
         livenessProbe:
           httpGet:
             path: /api/v1/auth/health
@@ -62,7 +62,6 @@ spec:
           initialDelaySeconds: 5
           periodSeconds: 5
           timeoutSeconds: 3
-
 ---
 apiVersion: v1
 kind: Service

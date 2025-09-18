@@ -17,7 +17,7 @@ spec:
       - name: ecr-pull-secret
       containers:
       - name: colab-service
-        image: "{{ECR_REGISTRY}}/brainlens-colab:latest"
+        image: "328764941686.dkr.ecr.eu-north-1.amazonaws.com/brainlens-colab:latest"
         ports:
         - containerPort: 8004
         env:
@@ -37,11 +37,11 @@ spec:
             name: brainlens-secrets
         resources:
           requests:
-            memory: "512Mi"
-            cpu: "250m"
+            memory: "256Mi"
+            cpu: "100m"
           limits:
-            memory: "1Gi"
-            cpu: "500m"
+            memory: "512Mi"
+            cpu: "300m"
         livenessProbe:
           httpGet:
             path: /api/v1/colab/health
@@ -57,7 +57,6 @@ spec:
           initialDelaySeconds: 5
           periodSeconds: 5
           timeoutSeconds: 3
-
 ---
 apiVersion: v1
 kind: Service
