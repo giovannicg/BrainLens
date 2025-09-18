@@ -164,8 +164,8 @@ kubectl apply -f k8s/ingress.yaml
 ## 🧠 Colab Integration
 
 ### Current Configuration
-- **Predict URL:** `https://4ae51406e065.ngrok-free.app/predict`
-- **Raw URL:** `https://4ae51406e065.ngrok-free.app/predict-raw`
+- **Predict URL:** `https://877a172a4c64.ngrok-free.app/predict`
+- **Raw URL:** `https://877a172a4c64.ngrok-free.app/predict-raw`
 
 ### Update Colab URLs
 ```bash
