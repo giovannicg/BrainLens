@@ -88,9 +88,9 @@ class ValidateUploadUseCase:
             # Predicción síncrona (colab-service)
             prediction_url = os.getenv("COLAB_PREDICT_URL", "http://colab-service:8004/predict")
             try:
-                with open(saved.file_path, "rb") as img_file:
-                    files = {"image": img_file}
-                    resp = requests.post(prediction_url, files=files, timeout=300)
+                # Usar el contenido de la imagen que ya tenemos en memoria
+                files = {"image": (original_filename, file_content, mime_type)}
+                resp = requests.post(prediction_url, files=files, timeout=300)
                 if resp.status_code == 200:
                     pred_data = resp.json()
                     # Actualizar imagen a completed con predicción
