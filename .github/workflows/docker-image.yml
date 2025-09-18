@@ -1,0 +1,71 @@
+name: Docker Build and Push
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build:
+    runs-on: self-hosted  # Cambiado a self-hosted runner
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Frontend image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./services/frontend-service
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ github.repository }}/frontend:latest
+
+      - name: Build and push Auth Service image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./services/auth-service
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ github.repository }}/auth:latest
+
+      - name: Build and push Image Service image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./services/image-service
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ github.repository }}/image:latest
+
+      - name: Build and push Colab Service image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./services/colab-service
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ github.repository }}/colab:latest
+
+      - name: Build and push Annotation Service image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./services/annotation-service
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ github.repository }}/annotation:latest
+
+      # Paso adicional para desplegar localmente
+      - name: Deploy locally
+        run: |
+          docker compose down
+          docker compose pull
+          docker compose up -d

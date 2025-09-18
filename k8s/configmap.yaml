@@ -26,5 +26,5 @@ data:
   # MONGODB_URL is provided via Secret to avoid accidental overrides
 
   # Colab external URLs (update these when ngrok URL changes)
-  COLAB_PREDICT_URL: "https://2980aab02631.ngrok-free.app/predict"
-  COLAB_PREDICT_RAW_URL: "https://2980aab02631.ngrok-free.app/predict-raw"
+  COLAB_PREDICT_URL: "https://877a172a4c64.ngrok-free.app/predict"
+  COLAB_PREDICT_RAW_URL: "https://877a172a4c64.ngrok-free.app/predict-raw"

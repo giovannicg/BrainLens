@@ -5,6 +5,10 @@ from typing import Optional, List
 import os
 import logging
 import httpx
+import time
+import base64
+import traceback
+import asyncio
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -56,7 +60,6 @@ async def predict_tumor(image: UploadFile = File(...)):
     de las predicciones por modelo. En empate, se elige la clase con mayor media de
     probabilidad entre las empatadas; si persiste empate, la de menor índice.
     """
-    import time, base64, traceback, asyncio
     start_time = time.time()
     # Siempre usar Colab; si no está configurado, error
     colab_url = os.getenv("COLAB_PREDICT_URL", "").strip()
@@ -91,7 +94,7 @@ async def predict_tumor(image: UploadFile = File(...)):
             status=str(data.get("status", "success")),
             prediction=data.get("prediction"),
             mean_score=float(data.get("mean_score")) if data.get("mean_score") is not None else None,
-            processing_time=float(data.get("processing_time", elapsed)),
+            processing_time=float(elapsed),
             error=data.get("error")
         )
     except HTTPException:

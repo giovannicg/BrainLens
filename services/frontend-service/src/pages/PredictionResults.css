@@ -152,11 +152,12 @@
   padding: 15px 25px;
   border-radius: 10px;
   cursor: pointer;
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 600;
+  justify-content: center;
   transition: all 0.3s ease;
   box-shadow: 0 4px 15px rgba(149, 165, 166, 0.3);
-  min-width: 200px;
+  /* min-width: 200px; */
 }
 
 .action-button:hover {
