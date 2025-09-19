@@ -169,24 +169,15 @@ export interface TumorPredictionResult {
   recomendacion: string;
 }
 
-// Determina si una etiqueta corresponde a tumor de forma robusta.
-// Evita falsos positivos como "notumor", "no_tumor" o "sin tumor".
+// Determina si una etiqueta corresponde a tumor.
+// Solo "notumor" se considera como NO tumor, todo lo demás es tumor.
 const isTumorLabel = (label: string): boolean => {
   const norm = String(label || '')
     .toLowerCase()
-    .trim()
-    .replace(/\s+/g, '_');
-  // Etiquetas consideradas como NO tumor
-  const noTumorSet = new Set([
-    'no_tumor',
-    'notumor',
-    'sin_tumor',
-    'no-tumor',
-    'negativo',
-  ]);
-  if (noTumorSet.has(norm)) return false;
-  // Positivos explícitos
-  return norm === 'tumor' || norm === 'tumour' || norm === 'positivo';
+    .trim();
+  
+  // Solo "notumor" se considera como NO tumor
+  return norm !== 'notumor';
 };
 
 export interface ProcessingStatusResponse {

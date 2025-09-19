@@ -12,12 +12,14 @@ const Predictions: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  // Alineado con la lógica del ApiService: evita que "notumor" dispare positivo
+  // Alineado con la lógica del ApiService: solo "notumor" se considera NO tumor
   const isTumorLabel = (label: string): boolean => {
-    const norm = String(label || '').toLowerCase().trim().replace(/\s+/g, '_');
-    const noTumorSet = new Set(['no_tumor','notumor','sin_tumor','no-tumor','negativo']);
-    if (noTumorSet.has(norm)) return false;
-    return norm === 'tumor' || norm === 'tumour' || norm === 'positivo';
+    const norm = String(label || '')
+      .toLowerCase()
+      .trim();
+    
+    // Solo "notumor" se considera como NO tumor
+    return norm !== 'notumor';
   };
 
   useEffect(() => {

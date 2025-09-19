@@ -119,8 +119,8 @@ services:
       - HOST=0.0.0.0
       - PORT=8004
       - DEBUG=true
-      - COLAB_PREDICT_URL=https://e5c0df9f47c8.ngrok-free.app/predict
-      - COLAB_PREDICT_RAW_URL=https://e5c0df9f47c8.ngrok-free.app/predict-raw
+      - COLAB_PREDICT_URL=https://ab8b62cdd66d.ngrok-free.app/predict
+      - COLAB_PREDICT_RAW_URL=https://ab8b62cdd66d.ngrok-free.app/predict-raw
     ports:
       - "8004:8004"
     depends_on:

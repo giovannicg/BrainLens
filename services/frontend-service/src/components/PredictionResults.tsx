@@ -32,12 +32,14 @@ const toUiStatus = (s: ProcessingStatusResponse['status']) =>
 
 const PredictionResults: React.FC<PredictionResultsProps> = ({ prediction }) => {
 
-  // Función de apoyo alineada con ApiService para evitar falsos positivos por "notumor"
+  // Función de apoyo alineada con ApiService: solo "notumor" se considera NO tumor
   const isTumorLabel = (label: string): boolean => {
-    const norm = String(label || '').toLowerCase().trim().replace(/\s+/g, '_');
-    const noTumorSet = new Set(['no_tumor','notumor','sin_tumor','no-tumor','negativo']);
-    if (noTumorSet.has(norm)) return false;
-    return norm === 'tumor' || norm === 'tumour' || norm === 'positivo';
+    const norm = String(label || '')
+      .toLowerCase()
+      .trim();
+    
+    // Solo "notumor" se considera como NO tumor
+    return norm !== 'notumor';
   };
 
   // si no hay predicción lista

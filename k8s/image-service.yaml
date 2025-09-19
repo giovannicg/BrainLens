@@ -64,26 +64,26 @@ spec:
           httpGet:
             path: /api/v1/images/health
             port: 8002
-          initialDelaySeconds: 60
-          periodSeconds: 15
-          timeoutSeconds: 10
-          failureThreshold: 5
+          initialDelaySeconds: 120
+          periodSeconds: 30
+          timeoutSeconds: 20
+          failureThreshold: 3
         readinessProbe:
           httpGet:
             path: /api/v1/images/health
             port: 8002
-          initialDelaySeconds: 20
-          periodSeconds: 10
-          timeoutSeconds: 10
-          failureThreshold: 5
+          initialDelaySeconds: 60
+          periodSeconds: 20
+          timeoutSeconds: 15
+          failureThreshold: 3
         startupProbe:
           httpGet:
             path: /api/v1/images/health
             port: 8002
-          initialDelaySeconds: 10
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 12
+          initialDelaySeconds: 30
+          periodSeconds: 15
+          timeoutSeconds: 10
+          failureThreshold: 20
       volumes:
       - name: image-storage
         emptyDir: {}
