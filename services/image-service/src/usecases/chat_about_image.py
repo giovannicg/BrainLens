@@ -3,6 +3,7 @@ from domain.entities.ChatMessage import ChatMessage
 from domain.repositories.ChatRepository import ChatRepository
 from domain.repositories.ImageRepository import ImageRepository
 from adapters.gateways.vlm_gateway import VisionLanguageGateway
+from infrastructure.storage import StorageService
 
 
 class ChatAboutImageUseCase:
@@ -24,9 +25,9 @@ class ChatAboutImageUseCase:
         user_msg = ChatMessage(image_id=image_id, user_id=user_id, role="user", content=prompt)
         await self.chat_repo.add_message(user_msg)
 
-        # 3. Leer bytes de imagen
-        with open(image.file_path, "rb") as f:
-            image_bytes = f.read()
+        # 3. Leer bytes de imagen (S3 o local)
+        storage = StorageService()
+        image_bytes = storage.read_bytes(image.file_path)
 
         # 4. Consultar VLM
         answer = self.vlm.ask_about_image(prompt=prompt, image_bytes=image_bytes, mime_type=image.mime_type)

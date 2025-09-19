@@ -119,7 +119,7 @@ resource "aws_eks_node_group" "brainlens" {
   }
 
   # Usar un tipo disponible y económico (x86_64 compatible)
-  instance_types = ["t3.micro"]
+  instance_types = ["t3.small"]
   capacity_type  = "SPOT"
 
   depends_on = [

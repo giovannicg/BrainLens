@@ -160,6 +160,18 @@ class StorageService:
             )
         except Exception:
             return None
+
+    def read_bytes(self, file_path: str) -> bytes:
+        """Leer bytes del archivo desde S3 o almacenamiento local según corresponda."""
+        if self.storage_type == "s3" and file_path.startswith("s3://"):
+            # Parsear s3://bucket/key
+            _, rest = file_path.split("s3://", 1)
+            bucket, key = rest.split("/", 1)
+            obj = self.s3_client.get_object(Bucket=bucket, Key=key)
+            return obj["Body"].read()
+        # Local
+        with open(file_path, "rb") as f:
+            return f.read()
     
     def is_valid_image_type(self, filename: str) -> bool:
         """Verificar si el archivo es un tipo de imagen válido"""
